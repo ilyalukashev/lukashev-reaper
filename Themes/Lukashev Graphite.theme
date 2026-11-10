@@ -1,5 +1,5 @@
 @description Lukashev Graphite (REAPER theme)
-@version 37
+@version 38
 @author Ilia Lukashev
 @changelog
   TCP insert column ruled with thin lines like the mixer
@@ -16,8 +16,8 @@
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 37.ReaperThemeZip
+  Lukashev Graphite 38.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 37.
+  After installing: Options > Themes > Lukashev Graphite 38.
