@@ -1,7 +1,9 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.2
+-- @version 1.3
 -- @author Ilia Lukashev
 -- @changelog
+--   Hide plugin formats per brand (right-click a brand > Formats)
+--   Sort the plugin list by name, brand or type
 --   Renamed LG -> LKSHV (settings, tags and images are carried over automatically)
 --   Tags with track-name matching (follow selected track, Recent for unknown tracks)
 --   _stm suffix opens Buss/Group tags
@@ -59,6 +61,7 @@ local S = {
   closeAfter= getS("closeAfter", "0") == "1",
   prefer    = getS("prefer", "VST3"),
   brandSort = getS("brandSort", "name"),
+  sort      = getS("sort", "name"),             -- plugin list order: name | brand | type
   sideW     = tonumber(getS("sideW", "196")) or 196,
   follow    = getS("follow", "1") == "1",
 }
@@ -66,6 +69,7 @@ local function saveSettings()
   setS("images", S.images and 1 or 0); setS("thumb", S.thumb); setS("hideDupes", S.hideDupes and 1 or 0)
   setS("openUI", S.openUI and 1 or 0); setS("closeAfter", S.closeAfter and 1 or 0); setS("prefer", S.prefer)
   setS("brandSort", S.brandSort); setS("sideW", math.floor(S.sideW)); setS("follow", S.follow and 1 or 0)
+  setS("sort", S.sort)
 end
 
 local DATA_DIR = DATA_ROOT .. "LKSHV FX Browser"
@@ -90,6 +94,7 @@ local favList, favSet = loadList("favorites")
 local recentList = loadList("recent")
 local _, hidPlug = loadList("hiddenPlugins")     -- plugin keys (all formats of a plugin)
 local _, hidDev = loadList("hiddenDevs")
+local _, hidFmt = loadList("hiddenFormats")     -- "Brand|FMT": that format is not shown for that brand
 local folders = {}          -- { {name=, set={}, n=} } in user order
 -- default track-name keywords for folders named like common instrument groups
 local KW_PRESETS = {
@@ -256,10 +261,11 @@ local function sanitize(s) return (s:gsub('[/\\:%*%?"<>|]', "_"):gsub("%s+", " "
 
 local all, byName = {}, {}
 local devCounts, devList = {}, {}
+local devFormats = {}                -- brand -> { FMT = number of plugins }
 local formatsPresent = {}
 
 local function scan()
-  all, byName, devCounts, devList, formatsPresent = {}, {}, {}, {}, {}
+  all, byName, devCounts, devList, formatsPresent, devFormats = {}, {}, {}, {}, {}, {}
   local i = 0
   while true do
     local ok, name, ident = reaper.EnumInstalledFX(i)
@@ -281,6 +287,11 @@ local function scan()
     all[#all + 1] = p
     byName[name] = p
     formatsPresent[fmt] = true
+    p.fmtHidden = hidFmt[dev .. "|" .. fmt] == true
+    if dev ~= "" then
+      devFormats[dev] = devFormats[dev] or {}
+      devFormats[dev][fmt] = (devFormats[dev][fmt] or 0) + 1
+    end
   end
   table.sort(all, function(a, b) if a.lbase ~= b.lbase then return a.lbase < b.lbase end return a.ldev < b.ldev end)
   -- preferred-format winner for each plugin (for de-duplication)
@@ -288,11 +299,12 @@ local function scan()
   for _, p in ipairs(all) do
     local cur = best[p.key]
     local rank = (p.fmt == S.prefer) and 0 or (FORMAT_RANK[p.fmt] or 9)
+    if p.fmtHidden then rank = rank + 100 end             -- a hidden format only wins when every format is hidden
     if not cur or rank < cur.rank then best[p.key] = { p = p, rank = rank } end
   end
   for _, p in ipairs(all) do p.primary = (best[p.key].p == p) end
   for _, p in ipairs(all) do
-    if p.primary and p.dev ~= "" then devCounts[p.dev] = (devCounts[p.dev] or 0) + 1 end
+    if p.primary and not p.fmtHidden and p.dev ~= "" then devCounts[p.dev] = (devCounts[p.dev] or 0) + 1 end
   end
   for d in pairs(devCounts) do devList[#devList + 1] = d end
   table.sort(devList, function(a, b) return a:lower() < b:lower() end)
@@ -744,7 +756,9 @@ local function rebuild()
   for _, p in ipairs(source) do
     local ok = true
     local hidden = hidPlug[p.key] or hidDev[p.dev]
-    if category == "hidden" then ok = hidden and p.primary elseif hidden then ok = false end
+    local fmtOff = p.fmtHidden and not category:match("^folder:")     -- tagged entries stay visible in their tag
+    if category == "hidden" then ok = (hidden and p.primary) or p.fmtHidden
+    elseif hidden or fmtOff then ok = false end
     if category ~= "recent" and S.hideDupes and not p.primary and not category:match("^fmt:") and not category:match("^folder:") then ok = false end
     if ok and category ~= "hidden" then
       if category == "fav" then ok = favSet[p.name] == true
@@ -762,6 +776,19 @@ local function rebuild()
       for _, t in ipairs(tokens) do if not p.search:find(t, 1, true) then ok = false; break end end
     end
     if ok then results[#results + 1] = p end
+  end
+  if category ~= "recent" and S.sort ~= "name" then            -- "name" is the scan order already
+    for i, p in ipairs(results) do p._i = i end
+    if S.sort == "brand" then
+      table.sort(results, function(a, b) if a.ldev ~= b.ldev then return a.ldev < b.ldev end return a._i < b._i end)
+    else                                                       -- type: instruments last, then format, then name
+      local function tr(p) return (p.inst and 100 or 0) + (FORMAT_RANK[p.fmt] or 9) end
+      table.sort(results, function(a, b)
+        local ta, tb = tr(a), tr(b)
+        if ta ~= tb then return ta < tb end
+        return a._i < b._i
+      end)
+    end
   end
   if #tokens > 0 and category ~= "recent" then   -- name-prefix matches and favourites float up
     local t1 = tokens[1]
@@ -1167,6 +1194,11 @@ local function setHiddenPlugins(list, on)
   for _, q in ipairs(list) do hidPlug[q.key] = on or nil end
   saveSet("hiddenPlugins", hidPlug); selectOnly(nil); dirty = true
 end
+local function setHiddenFormat(devs, fmt, on)
+  for _, d in ipairs(devs) do hidFmt[d .. "|" .. fmt] = on or nil end
+  saveSet("hiddenFormats", hidFmt)
+  scan(); selectOnly(nil); dirty = true
+end
 local function setHiddenDev(dev, on)
   if dev == "" then return end
   hidDev[dev] = on or nil
@@ -1265,6 +1297,10 @@ local function contextMenu(p)
         setHiddenPlugins(list, false)
       end
       if hidDev[p.dev] and ImGui.MenuItem(ctx, "Unhide developer " .. p.dev) then setHiddenDev(p.dev, false) end
+      if p.fmtHidden and ImGui.MenuItem(ctx, "Show " .. p.fmt .. " plugins of " .. p.dev) then
+        local d, f = p.dev, p.fmt
+        queue(function() setHiddenFormat({ d }, f, false) end)
+      end
     else
       if ImGui.MenuItem(ctx, many and ("Hide %d plugins"):format(#list) or "Hide plugin") then setHiddenPlugins(list, true) end
       if p.dev ~= "" and ImGui.MenuItem(ctx, "Hide developer " .. p.dev) then setHiddenDev(p.dev, true) end
@@ -1398,6 +1434,26 @@ local function sideItem(label, cat, count, ic)
     for _, d in ipairs(list) do dset[d] = true end
     captureMenu(pluginsOfDevs(dset))
     ImGui.Separator(ctx)
+    if ImGui.BeginMenu(ctx, "Formats") then                -- ticked = shown for this brand
+      local fm = {}
+      for _, d in ipairs(list) do for f in pairs(devFormats[d] or {}) do fm[f] = true end end
+      for _, f in ipairs({ "VST3", "AU", "CLAP", "VST", "LV2", "JS", "DX" }) do
+        if fm[f] then
+          local shown, n = 0, 0
+          for _, d in ipairs(list) do
+            if devFormats[d] and devFormats[d][f] then
+              n = n + 1
+              if not hidFmt[d .. "|" .. f] then shown = shown + 1 end
+            end
+          end
+          if ImGui.MenuItem(ctx, f .. "##fmtvis", nil, shown == n) then
+            local l, ff, hide = list, f, shown == n
+            queue(function() setHiddenFormat(l, ff, hide) end)
+          end
+        end
+      end
+      ImGui.EndMenu(ctx)
+    end
     if ImGui.MenuItem(ctx, #list > 1 and ("Hide %d developers"):format(#list) or ("Hide developer " .. dev)) then
       for _, d in ipairs(list) do setHiddenDev(d, true); devSel[d] = nil end
       if not next(devSel) and category == "devs" then category = "all" end
@@ -1640,6 +1696,17 @@ local function frameUI()
     rv, S.follow = ImGui.Checkbox(ctx, "Follow track", S.follow)
     if rv then saveSettings(); ctxTrackKey = nil end
     if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx, "Show the tag that matches the selected track's name (Recent for unknown tracks)") end
+    ImGui.SameLine(ctx)
+    ImGui.SetNextItemWidth(ctx, 112)
+    local SORTS = { { "name", "Name" }, { "brand", "Brand" }, { "type", "Type" } }
+    local cur = "Name"
+    for _, o in ipairs(SORTS) do if o[1] == S.sort then cur = o[2] end end
+    if ImGui.BeginCombo(ctx, "##sort", "Sort: " .. cur) then
+      for _, o in ipairs(SORTS) do
+        if ImGui.Selectable(ctx, o[2], S.sort == o[1]) then S.sort = o[1]; saveSettings(); dirty = true end
+      end
+      ImGui.EndCombo(ctx)
+    end
     ImGui.SameLine(ctx)
     if S.images then
       ImGui.SetNextItemWidth(ctx, 110)
