@@ -1,8 +1,8 @@
-desc:LG Analog Meters (VU / Dorrough-style / SSL-style plasma)
+desc:LKSHV Analog Meters (VU / Dorrough-style / SSL-style plasma)
 tags: analysis meter vu ppm loudness
 author: Ilia Lukashev
-version: 1.0
-changelog: First ReaPack release
+version: 1.1
+changelog: Display name changed from LG to LKSHV (file name kept so existing projects still load it)
 // Click the meter to switch type. Alt+click resets peak holds.
 // Ballistics:
 //   VU      - mechanical 2nd-order movement on the full-wave rectified signal:

@@ -1,8 +1,8 @@
-desc:LG Phosphor Scope (goniometer / X-Y / oscilloscope)
+desc:LKSHV Phosphor Scope (goniometer / X-Y / oscilloscope)
 tags: analysis goniometer oscilloscope vectorscope lissajous
 author: Ilia Lukashev
-version: 1.0
-changelog: First ReaPack release
+version: 1.1
+changelog: Display name changed from LG to LKSHV (file name kept so existing projects still load it)
 // Analog CRT look: the trace is a continuous beam whose brightness falls with beam speed,
 // phosphor persistence and glass halation. Settings: click the "..." button in the top-right corner.
 // Right-click the FX in TCP/MCP -> "Show embedded UI" to put it in the track / mixer strip.
