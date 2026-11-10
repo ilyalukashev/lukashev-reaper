@@ -1,14 +1,15 @@
 @description Lukashev Graphite (REAPER theme)
-@version 27
+@version 28
 @author Ilia Lukashev
 @changelog
+  No send knob on empty send rows (TCP and MCP); black waveform outline
   Mixer: selected strip marked over its full height (blue wash + accent edges)
   Slightly deeper indicator colours (FX/rec/routing); mute and solo keep full brightness
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 27.ReaperThemeZip
+  Lukashev Graphite 28.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 27.
+  After installing: Options > Themes > Lukashev Graphite 28.
