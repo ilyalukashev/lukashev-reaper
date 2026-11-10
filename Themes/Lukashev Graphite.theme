@@ -1,7 +1,8 @@
 @description Lukashev Graphite (REAPER theme)
-@version 29
+@version 30
 @author Ilia Lukashev
 @changelog
+  Black outline drawn around peaks and waveforms
   Waveform peaks in track/item/take colour on a neutral item background (Pro Tools style)
   No send knob on empty send rows (TCP and MCP); black waveform outline
   Mixer: selected strip marked over its full height (blue wash + accent edges)
@@ -9,8 +10,8 @@
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 29.ReaperThemeZip
+  Lukashev Graphite 30.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 29.
+  After installing: Options > Themes > Lukashev Graphite 30.
