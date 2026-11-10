@@ -1,7 +1,8 @@
 -- @description LKSHV Stem Matrix — one-click mute / solo for _STM tracks
--- @version 1.2
+-- @version 1.3
 -- @author Ilia Lukashev
 -- @changelog
+--   Drag across buttons with the left button held to mute / unmute (Cmd: solo) several stems in one gesture
 --   Renamed LG -> LKSHV (saved stem-name rules are carried over)
 --   Which tracks count as stems is configurable per project (e.g. "bus") with a global default ("_stm")
 -- @about
@@ -125,14 +126,27 @@ local function setAll(list, parm, val, undo)
   reaper.Undo_EndBlock(undo, -1)
 end
 
-local function toggle(s, solo)
-  reaper.Undo_BeginBlock()
-  if solo then
-    reaper.SetMediaTrackInfo_Value(s.tr, "I_SOLO", s.solo and 0 or 2)   -- 2 = solo in place
-  else
-    reaper.SetMediaTrackInfo_Value(s.tr, "B_MUTE", s.mute and 0 or 1)
-  end
-  reaper.Undo_EndBlock((solo and "Solo stem " or "Mute stem ") .. s.label, -1)
+-- one gesture: press on a stem flips it, dragging on applies the SAME new state to every stem passed over
+local drag   -- { parm = "B_MUTE"|"I_SOLO", val = number, done = {[track]=true}, n = count, label = first stem }
+
+local function paint(s)
+  if drag.done[s.tr] then return end
+  drag.done[s.tr] = true
+  drag.n = drag.n + 1
+  reaper.SetMediaTrackInfo_Value(s.tr, drag.parm, drag.val)
+end
+
+local function beginDrag(s, solo)
+  if solo then drag = { parm = "I_SOLO", val = s.solo and 0 or 2 }      -- 2 = solo in place
+  else drag = { parm = "B_MUTE", val = s.mute and 0 or 1 } end
+  drag.done, drag.n, drag.label = {}, 0, s.label
+  paint(s)
+end
+
+local function endDrag()
+  local what = drag.parm == "I_SOLO" and (drag.val > 0 and "Solo" or "Unsolo") or (drag.val > 0 and "Mute" or "Unmute")
+  reaper.Undo_OnStateChange(drag.n == 1 and (what .. " stem " .. drag.label) or (what .. " " .. drag.n .. " stems"))
+  drag = nil
 end
 
 -- ---------------------------------------------------------------- drawing
@@ -145,8 +159,10 @@ end
 
 local function stemButton(i, s, w)
   local x, y = ImGui.GetCursorScreenPos(ctx)
-  local clicked = ImGui.InvisibleButton(ctx, "##stem" .. i, w, BTN_H)
-  local hov = ImGui.IsItemHovered(ctx)
+  ImGui.InvisibleButton(ctx, "##stem" .. i, w, BTN_H)
+  -- own hit-test: while the button is held, ImGui reports hover only for the pressed item
+  local mx, my = ImGui.GetMousePos(ctx)
+  local hov = mx and mx >= x and mx < x + w and my >= y and my < y + BTN_H and ImGui.IsWindowHovered(ctx, ImGui.HoveredFlags_AllowWhenBlockedByActiveItem)
   local dl = ImGui.GetWindowDrawList(ctx)
   local bg = s.mute and C.btnMute or (hov and C.btnHi or C.btn)
   ImGui.DrawList_AddRectFilled(dl, x, y, x + w, y + BTN_H, bg, 6)
@@ -170,11 +186,11 @@ local function stemButton(i, s, w)
   local label = ellipsize(s.label, w - 13 - 8 - (chipW > 0 and chipW + 6 or 0))
   local _, th = ImGui.CalcTextSize(ctx, label)
   ImGui.DrawList_AddText(dl, tx, y + (BTN_H - th) / 2, s.mute and C.textMute or C.text, label)
-  if hov then
+  if hov and not drag then
     ImGui.SetTooltip(ctx, s.label .. "\nClick: " .. (s.mute and "unmute" or "mute") ..
-      "   Cmd+click: " .. (s.solo and "unsolo" or "solo"))
+      "   Cmd+click: " .. (s.solo and "unsolo" or "solo") .. "\nDrag across buttons: several at once")
   end
-  return clicked
+  return hov
 end
 
 -- ---------------------------------------------------------------- loop
@@ -204,8 +220,12 @@ local function frame()
       local cmd = (mods & ImGui.Mod_Ctrl) ~= 0 or (mods & ImGui.Mod_Super) ~= 0
       for i, s in ipairs(list) do
         if (i - 1) % cols ~= 0 then ImGui.SameLine(ctx) end
-        if stemButton(i, s, w) then toggle(s, cmd) end
+        if stemButton(i, s, w) then
+          if not drag and ImGui.IsMouseClicked(ctx, ImGui.MouseButton_Left) then beginDrag(s, cmd)
+          elseif drag and ImGui.IsMouseDown(ctx, ImGui.MouseButton_Left) then paint(s) end
+        end
       end
+      if drag and not ImGui.IsMouseDown(ctx, ImGui.MouseButton_Left) then endDrag() end
     end
     local docked = ImGui.IsWindowDocked(ctx)
     -- right-click anywhere in the window
