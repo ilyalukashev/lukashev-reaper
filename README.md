@@ -19,6 +19,7 @@ Updates arrive with **Extensions → ReaPack → Synchronize packages**.
 | Package | Type | Notes |
 |---|---|---|
 | LG FX Browser | Script | Fast FX browser with plugin images, tags, follow-selected-track suggestions, drag & drop onto tracks/items. Needs **ReaImGui** (ReaTeam Extensions). |
+| LG Stem Matrix | Script | Compact dockable button matrix of all `_STM` tracks: click = mute, Cmd+click = solo. Needs **ReaImGui**. |
 | LG Analog Meters | JSFX | VU needle / Dorrough-style / SSL-style plasma with real ballistics. Click to switch type. |
 | LG Phosphor Scope | JSFX | Analog CRT goniometer / X-Y / oscilloscope; works as embedded UI in TCP/MCP. |
 | Lukashev Graphite | Theme | Minimal high-res theme based on Default 7. After install: Options → Themes. |
