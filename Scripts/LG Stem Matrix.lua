@@ -1,10 +1,11 @@
 -- @description LG Stem Matrix — one-click mute / solo for _STM tracks
--- @version 1.0
+-- @version 1.1
 -- @author Ilia Lukashev
 -- @changelog
---   First release
+--   Which tracks count as stems is configurable per project (e.g. "bus") with a global default ("_stm")
 -- @about
---   A compact button matrix of every track whose name ends in "_STM" (any case, e.g. "DRUMS_stm", "Vox_Stm 2").
+--   A compact button matrix of every stem track. By default a stem is a track whose name ends in "_STM"
+--   (any case); right-click > Match track names sets other rules per project, e.g. "bus" or "_stm, bus".
 --   Click: mute / unmute the stem. Cmd+click (Ctrl on Windows): solo / unsolo.
 --   Right-click: unmute all, unsolo all, dock / undock. Made to live in a REAPER docker.
 --   Requires ReaImGui (ReaPack: ReaTeam Extensions).
@@ -32,13 +33,62 @@ local BTN_MIN_W, BTN_H, GAP = 92, 30, 4
 local dockWanted = nil   -- set from the menu; ReaImGui remembers docking between runs itself
 
 -- ---------------------------------------------------------------- tracks
+-- rules: comma separated; "_xxx" = suffix (e.g. _stm matches "DRUMS_STM", "Vox_Stm 2"),
+-- anything else = a word in the name (e.g. bus matches "MUSIC BUS", "Drum Buss")
+local DEFAULT_RULES = "_stm"
+local rulesText, rules
+
+local function loadRules()
+  local _, proj = reaper.GetProjExtState(0, NAME, "match")
+  local glob = reaper.GetExtState(NAME, "match")
+  rulesText = (proj ~= "" and proj) or (glob ~= "" and glob) or DEFAULT_RULES
+  rules = {}
+  for w in rulesText:gmatch("[^,]+") do
+    w = w:gsub("^%s+", ""):gsub("%s+$", ""):lower()
+    if w ~= "" then rules[#rules + 1] = w end
+  end
+end
+
+local function escape(p) return (p:gsub("%p", "%%%0")) end
+
 local function isStem(name)
-  return name:lower():find("_stm%f[^%a]") ~= nil
+  local l = name:lower()
+  for _, r in ipairs(rules) do
+    if r:sub(1, 1) == "_" then
+      if l:find(escape(r) .. "%f[^%a]") then return true end
+    else
+      for w in l:gmatch("%w+") do
+        if w == r or w == r .. "s" then return true end     -- bus / buss, stem / stems
+      end
+    end
+  end
+  return false
 end
 
 local function shortName(name)
-  local s = name:gsub("[_%s]*[Ss][Tt][Mm]%f[^%a]", "", 1):gsub("^%s+", ""):gsub("%s+$", "")
+  local s = name
+  for _, r in ipairs(rules) do
+    if r:sub(1, 1) == "_" then
+      local pat = "[_%s]*" .. escape(r:sub(2)):gsub("%a", function(c) return "[" .. c:upper() .. c:lower() .. "]" end) .. "%f[^%a]"
+      s = s:gsub(pat, "", 1)
+    end
+  end
+  s = s:gsub("^%s+", ""):gsub("%s+$", "")
   return s ~= "" and s or name
+end
+
+local function editRules(scope)
+  local ok, v = reaper.GetUserInputs(NAME .. (scope == "project" and " - this project" or " - default"), 1,
+    "Stem names (comma separated):,extrawidth=220", rulesText)
+  if not ok then return end
+  v = v:gsub("^%s+", ""):gsub("%s+$", "")
+  if scope == "project" then
+    reaper.SetProjExtState(0, NAME, "match", v)
+    reaper.MarkProjectDirty(0)
+  else
+    reaper.SetExtState(NAME, "match", v, true)
+  end
+  loadRules()
 end
 
 local function stems()
@@ -124,7 +174,12 @@ local function stemButton(i, s, w)
 end
 
 -- ---------------------------------------------------------------- loop
+local lastProj
+local pendingEdit
 local function frame()
+  local proj = reaper.EnumProjects(-1)
+  if proj ~= lastProj then lastProj = proj; loadRules() end
+  if pendingEdit then local sc = pendingEdit; pendingEdit = nil; editRules(sc) end
   local list = stems()
   if dockWanted ~= nil then ImGui.SetNextWindowDockID(ctx, dockWanted); dockWanted = nil end
   ImGui.SetNextWindowSize(ctx, 320, 140, ImGui.Cond_FirstUseEver)
@@ -136,7 +191,8 @@ local function frame()
   if visible then
     local availW = ImGui.GetContentRegionAvail(ctx)
     if #list == 0 then
-      ImGui.TextColored(ctx, C.textMute, 'No tracks ending in "_STM"')
+      ImGui.TextColored(ctx, C.textMute, "No stem tracks (" .. rulesText .. ")")
+      ImGui.TextColored(ctx, C.textMute, "Right-click > Match track names")
     else
       local cols = math.max(1, math.floor((availW + GAP) / (BTN_MIN_W + GAP)))
       local w = math.floor((availW - GAP * (cols - 1)) / cols)
@@ -155,6 +211,10 @@ local function frame()
     if ImGui.BeginPopup(ctx, "menu") then
       if ImGui.MenuItem(ctx, "Unmute all stems") then setAll(list, "B_MUTE", 0, "Unmute all stems") end
       if ImGui.MenuItem(ctx, "Unsolo all stems") then setAll(list, "I_SOLO", 0, "Unsolo all stems") end
+      ImGui.Separator(ctx)
+      ImGui.TextDisabled(ctx, "Stems: " .. rulesText)
+      if ImGui.MenuItem(ctx, "Match track names (this project)...") then pendingEdit = "project" end
+      if ImGui.MenuItem(ctx, "Match track names (default)...") then pendingEdit = "default" end
       ImGui.Separator(ctx)
       if ImGui.MenuItem(ctx, docked and "Undock" or "Dock in REAPER docker") then
         dockWanted = docked and 0 or -1
