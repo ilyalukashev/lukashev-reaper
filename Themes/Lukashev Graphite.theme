@@ -1,7 +1,8 @@
 @description Lukashev Graphite (REAPER theme)
-@version 39
+@version 40
 @author Ilia Lukashev
 @changelog
+  Thin divider between the track colour block and the insert column in the TCP
   No stray empty knob circles next to TCP sends (empty FX-parameter slots hidden)
   Arrange grid lines visible again (fixed grid draw modes)
   Softer, more pastel item backgrounds
@@ -15,8 +16,8 @@
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 39.ReaperThemeZip
+  Lukashev Graphite 40.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 39.
+  After installing: Options > Themes > Lukashev Graphite 40.
