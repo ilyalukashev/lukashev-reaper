@@ -1,0 +1,303 @@
+desc:LG Phosphor Scope (goniometer / X-Y / oscilloscope)
+tags: analysis goniometer oscilloscope vectorscope lissajous
+author: Ilia Lukashev
+version: 1.0
+changelog: First ReaPack release
+// Analog CRT look: the trace is a continuous beam whose brightness falls with beam speed,
+// phosphor persistence and glass halation. Settings: click the "..." button in the top-right corner.
+// Right-click the FX in TCP/MCP -> "Show embedded UI" to put it in the track / mixer strip.
+
+slider1:gain_db=0<-24,24,0.5>-Gain (dB)
+slider2:pers_ms=45<5,200,1>-Persistence (ms)
+slider3:beam=1<0.1,4,0.05>-Beam intensity
+slider4:mode=0<0,2,1{Goniometer (M/S),X-Y (L/R),Oscilloscope}>-Mode
+slider5:phos=0<0,3,1{P31 green,P7 blue-white,P3 amber,White}>-Phosphor
+slider6:glow=0.65<0,1.5,0.05>-Glow
+slider7:grat=1<0,1,1{Off,On}>-Graticule
+slider8:tb_ms=20<1,100,0.5>-Timebase (ms)
+slider9:scopech=0<0,1,1{Stereo (L/R),Mono (L+R)}>-Scope channels
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+@init
+MASK = 65535;
+bufL = 0;
+bufR = 65536;
+wp = 0;
+gfx_ext_retina = 1;
+panel = 0; dragid = 0; lastcap = 0; lastmode = -1;
+
+// ---------------------------------------------------------------- beam model
+function pt(L, R)
+(
+  mode == 0 ? ( ptx = cx + (L - R) * sc; pty = cy - (L + R) * sc; )
+            : ( ptx = cx + L * sc;       pty = cy - R * sc; );
+);
+
+// one beam segment: energy per pixel is inversely proportional to its length
+function seg(ax, ay, bx, by) local(dx, dy, len, a)
+(
+  dx = bx - ax; dy = by - ay;
+  len = sqrt(dx * dx + dy * dy);
+  a = kI * wt / max(len, 0.6);
+  a > 0.004 ? ( gfx_a = min(a, 1); gfx_line(ax, ay, bx, by, 1); );
+);
+
+// one oscilloscope sweep of channel data starting at buffer index s0
+function sweep(s0, N, ych, yscale, which) local(k, i, v0, v1, v2, v3, x0, xs, ya, yb, ym)
+(
+  xs = lw / N;
+  i = s0;
+  v0 = which == 0 ? bufL[(i - 1) & MASK] : which == 1 ? bufR[(i - 1) & MASK] : 0.5 * (bufL[(i - 1) & MASK] + bufR[(i - 1) & MASK]);
+  v1 = which == 0 ? bufL[i] : which == 1 ? bufR[i] : 0.5 * (bufL[i] + bufR[i]);
+  v2 = which == 0 ? bufL[(i + 1) & MASK] : which == 1 ? bufR[(i + 1) & MASK] : 0.5 * (bufL[(i + 1) & MASK] + bufR[(i + 1) & MASK]);
+  k = 0;
+  loop(N,
+    v3 = which == 0 ? bufL[(i + 2) & MASK] : which == 1 ? bufR[(i + 2) & MASK] : 0.5 * (bufL[(i + 2) & MASK] + bufR[(i + 2) & MASK]);
+    x0 = k * xs;
+    ya = ych - v1 * yscale;
+    yb = ych - v2 * yscale;
+    ym = ych - (-0.0625 * v0 + 0.5625 * v1 + 0.5625 * v2 - 0.0625 * v3) * yscale;
+    seg(x0, ya, x0 + xs * 0.5, ym);
+    seg(x0 + xs * 0.5, ym, x0 + xs, yb);
+    v0 = v1; v1 = v2; v2 = v3;
+    i = (i + 1) & MASK;
+    k += 1;
+  );
+);
+
+// ---------------------------------------------------------------- minimal UI widgets (theme style)
+function inr(x, y, w, h) ( mouse_x >= x && mouse_x < x + w && mouse_y >= y && mouse_y < y + h; );
+function rrect(x, y, w, h, rd) (
+  rd = min(rd, min(w, h) / 2);
+  gfx_rect(x + rd, y, w - 2 * rd, h);
+  gfx_rect(x, y + rd, rd, h - 2 * rd);
+  gfx_rect(x + w - rd, y + rd, rd, h - 2 * rd);
+  gfx_circle(x + rd, y + rd, rd, 1, 1);  gfx_circle(x + w - rd - 1, y + rd, rd, 1, 1);
+  gfx_circle(x + rd, y + h - rd - 1, rd, 1, 1);  gfx_circle(x + w - rd - 1, y + h - rd - 1, rd, 1, 1);
+);
+function txt(s, x, y, w, h, align) local(tw, th) (
+  gfx_measurestr(s, tw, th);
+  gfx_x = align == 0 ? x : align == 1 ? x + (w - tw) / 2 : x + w - tw;
+  gfx_y = y + (h - th) / 2;
+  gfx_drawstr(s);
+);
+function btn(x, y, w, h, s, active) local(hov) (
+  hov = inr(x, y, w, h);
+  active ? ( gfx_r = 0.04; gfx_g = 0.52; gfx_b = 1; ) : hov ? ( gfx_r = gfx_g = 0.30; gfx_b = 0.32; ) : ( gfx_r = gfx_g = 0.22; gfx_b = 0.235; );
+  gfx_a = 1; rrect(x, y, w, h, 5 * r);
+  gfx_r = gfx_g = gfx_b = active ? 1 : 0.86; txt(s, x, y, w, h, 1);
+  click && hov;
+);
+function sld(id, x, y, w, h, s, v, mn, mx, fmt) local(hov, f) (
+  hov = inr(x, y, w, h);
+  click && hov ? ( dragid = id; );
+  dragid == id && (mouse_cap & 1) ? ( v = mn + max(0, min(1, (mouse_x - x) / w)) * (mx - mn); changed = 1; );
+  f = (v - mn) / (mx - mn);
+  gfx_a = 1; gfx_r = gfx_g = 0.20; gfx_b = 0.215; rrect(x, y, w, h, 5 * r);
+  gfx_r = 0.04; gfx_g = 0.52; gfx_b = 1; gfx_a = hov || dragid == id ? 0.85 : 0.65;
+  f > 0.01 ? rrect(x, y, max(h, w * f), h, 5 * r);
+  gfx_a = 1; gfx_r = gfx_g = gfx_b = 0.95;
+  txt(s, x + 8 * r, y, w, h, 0);
+  sprintf(#val, fmt, v);
+  txt(#val, x, y, w - 8 * r, h, 2);
+  v;
+);
+
+@sample
+bufL[wp] = spl0;
+bufR[wp] = spl1;
+wp = (wp + 1) & MASK;
+
+@gfx 420 360
+r = gfx_ext_retina > 1 ? 2 : 1;
+W = gfx_w; H = gfx_h;
+click = (mouse_cap & 1) && !(lastcap & 1);
+!(mouse_cap & 1) ? ( dragid = 0; );
+
+W >= 24 && H >= 24 ? (
+
+lw = max(8, floor(W / r)); lh = max(8, floor(H / r));
+w2 = max(2, floor(lw / 2));  h2 = max(2, floor(lh / 2));
+w3 = max(2, floor(lw / 4));  h3 = max(2, floor(lh / 4));
+w4 = max(2, floor(lw / 8));  h4 = max(2, floor(lh / 8));
+gfx_setimgdim(1, lw, lh);
+gfx_setimgdim(2, w2, h2);
+gfx_setimgdim(3, w3, h3);
+gfx_setimgdim(4, w4, h4);
+
+phos == 0 ? ( pr = 0.42; pg = 1.00; pb = 0.52; ) :
+phos == 1 ? ( pr = 0.62; pg = 0.82; pb = 1.00; ) :
+phos == 2 ? ( pr = 1.00; pg = 0.66; pb = 0.20; ) :
+            ( pr = 1.00; pg = 1.00; pb = 1.00; );
+
+g = 10 ^ (gain_db / 20);
+cx = lw * 0.5; cy = lh * 0.5;
+rad = min(lw, lh) * 0.46;
+kI = beam * 0.55 * 48000 / srate;
+gfx_dest = 1;
+
+mode == 2 ? (
+  // ---------------- oscilloscope: persistent phosphor image (fade previous sweeps)
+  mode != lastmode ? ( gfx_mode = 0; gfx_a = 1; gfx_r = gfx_g = gfx_b = 0; gfx_rect(0, 0, lw, lh); );
+  gfx_mode = 0;
+  gfx_r = gfx_g = gfx_b = 0;
+  gfx_a = 1 - exp(-0.033 / max(0.005, pers_ms * 0.004));      // frame-rate fade, persistence scaled up for sweeps
+  gfx_rect(0, 0, lw, lh);
+  N = max(16, min(floor(tb_ms * 0.001 * srate), 20000));
+  // trigger: latest rising zero crossing that still leaves a full sweep before the write head
+  look = floor(srate * 0.05);
+  s0 = (wp - N - 2) & MASK;
+  found = 0; k = 0; j = s0;
+  loop(look,
+    !found ? (
+      m1 = bufL[(j - 1) & MASK] + bufR[(j - 1) & MASK];
+      m0 = bufL[j] + bufR[j];
+      m1 < 0 && m0 >= 0 ? ( found = 1; s0 = j; );
+      j = (j - 1) & MASK;
+    );
+  );
+  gfx_mode = 1;
+  gfx_r = pr; gfx_g = pg; gfx_b = pb;
+  wt = 1;
+  scopech == 0 ? (
+    sweep(s0, N, lh * 0.27, lh * 0.22 * g, 0);
+    sweep(s0, N, lh * 0.73, lh * 0.22 * g, 1);
+  ) : (
+    sweep(s0, N, lh * 0.5, lh * 0.42 * g, 2);
+  );
+) : (
+  // ---------------- goniometer / X-Y: trace rebuilt from history every frame
+  gfx_mode = 0; gfx_a = 1; gfx_r = gfx_g = gfx_b = 0;
+  gfx_rect(0, 0, lw, lh);
+  sc = mode == 0 ? rad * g * 0.5 : rad * g;
+  n = max(8, min(floor(srate * pers_ms / 1000), 16000));
+  wt = exp(-3);
+  d = exp(3 / n);
+  gfx_mode = 1;
+  gfx_r = pr; gfx_g = pg; gfx_b = pb;
+  i = (wp - n - 3) & MASK;
+  pt(bufL[i], bufR[i]); x0 = ptx; y0 = pty;
+  pt(bufL[(i + 1) & MASK], bufR[(i + 1) & MASK]); x1 = ptx; y1 = pty;
+  pt(bufL[(i + 2) & MASK], bufR[(i + 2) & MASK]); x2 = ptx; y2 = pty;
+  loop(n,
+    i3 = (i + 3) & MASK;
+    pt(bufL[i3], bufR[i3]); x3 = ptx; y3 = pty;
+    mx = -0.0625 * x0 + 0.5625 * x1 + 0.5625 * x2 - 0.0625 * x3;
+    my = -0.0625 * y0 + 0.5625 * y1 + 0.5625 * y2 - 0.0625 * y3;
+    seg(x1, y1, mx, my);
+    seg(mx, my, x2, y2);
+    x0 = x1; y0 = y1; x1 = x2; y1 = y2; x2 = x3; y2 = y3;
+    i = (i + 1) & MASK;
+    wt *= d;
+  );
+);
+lastmode = mode;
+
+// ---------------- bloom pyramid
+gfx_mode = 0; gfx_a = 1;
+gfx_dest = 2; gfx_blit(1, 1, 0, 0, 0, lw, lh, 0, 0, w2, h2);
+gfx_dest = 3; gfx_blit(2, 1, 0, 0, 0, w2, h2, 0, 0, w3, h3);
+gfx_x = 0; gfx_y = 0; gfx_blurto(w3, h3);
+gfx_dest = 4; gfx_blit(3, 1, 0, 0, 0, w3, h3, 0, 0, w4, h4);
+gfx_x = 0; gfx_y = 0; gfx_blurto(w4, h4);
+gfx_x = 0; gfx_y = 0; gfx_blurto(w4, h4);
+
+// ---------------- composite
+gfx_dest = -1; gfx_mode = 0; gfx_a = 1;
+gfx_r = 0.010 + pr * 0.008; gfx_g = 0.012 + pg * 0.010; gfx_b = 0.012 + pb * 0.008;
+gfx_rect(0, 0, W, H);
+
+CX = W * 0.5; CY = H * 0.5; RAD = rad * r;
+grat ? (
+  gfx_r = pr; gfx_g = pg; gfx_b = pb;
+  mode == 2 ? (
+    gfx_a = 0.06;
+    q = 0; loop(11, gfx_line(W * q / 10, 0, W * q / 10, H, 1); q += 1; );
+    scopech == 0 ? (
+      gfx_line(0, H * 0.27, W, H * 0.27, 1); gfx_line(0, H * 0.73, W, H * 0.73, 1);
+      gfx_a = 0.04; gfx_line(0, H * 0.5, W, H * 0.5, 1);
+    ) : ( gfx_line(0, H * 0.5, W, H * 0.5, 1); );
+  ) : (
+    gfx_a = 0.07;
+    gfx_line(CX, CY - RAD, CX, CY + RAD, 1);
+    gfx_line(CX - RAD, CY, CX + RAD, CY, 1);
+    mode == 0 ? (
+      q = RAD * 0.7071; gfx_a = 0.045;
+      gfx_line(CX - q, CY - q, CX + q, CY + q, 1);
+      gfx_line(CX + q, CY - q, CX - q, CY + q, 1);
+    );
+    gfx_a = 0.05; gfx_circle(CX, CY, RAD, 0, 1);
+  );
+);
+
+gfx_mode = 1;
+gfx_a = glow * 0.45; gfx_blit(2, 1, 0, 0, 0, w2, h2, 0, 0, W, H);
+gfx_a = glow * 0.85; gfx_blit(3, 1, 0, 0, 0, w3, h3, 0, 0, W, H);
+gfx_a = glow * 0.75; gfx_blit(4, 1, 0, 0, 0, w4, h4, 0, 0, W, H);
+gfx_a = 1;           gfx_blit(1, 1, 0, 0, 0, lw, lh, 0, 0, W, H);
+gfx_mode = 0;
+
+// ---------------- settings: "..." button (top-right) opens a panel
+big = W >= 230 * r && H >= 170 * r;
+gfx_setfont(3, "Arial", 12 * r);
+hover = inr(0, 0, W, H);
+bx = W - 30 * r; by = 6 * r;
+(hover || panel) && big ? (
+  gfx_r = gfx_g = gfx_b = 1; gfx_a = inr(bx, by, 24 * r, 18 * r) || panel ? 0.85 : 0.40;
+  gfx_circle(bx + 6 * r, by + 9 * r, 1.8 * r, 1, 1);
+  gfx_circle(bx + 12 * r, by + 9 * r, 1.8 * r, 1, 1);
+  gfx_circle(bx + 18 * r, by + 9 * r, 1.8 * r, 1, 1);
+  click && inr(bx, by, 24 * r, 18 * r) ? ( panel = !panel; click = 0; );
+);
+
+panel && big ? (
+  pw = min(270 * r, W - 16 * r); ph = (mode == 2 ? 286 : 226) * r;
+  ph = min(ph, H - 36 * r);
+  px = W - pw - 8 * r; py = 28 * r;
+  click && !inr(px, py, pw, ph) && !inr(bx, by, 24 * r, 18 * r) ? ( panel = 0; ) : (
+    gfx_r = 0.11; gfx_g = 0.11; gfx_b = 0.12; gfx_a = 0.94; rrect(px, py, pw, ph, 10 * r);
+    ix = px + 10 * r; iw = pw - 20 * r; yy = py + 10 * r; rh = 24 * r; gp = 6 * r;
+    changed = 0;
+    // mode
+    sw = (iw - 2 * gp) / 3;
+    btn(ix, yy, sw, rh, "Gonio", mode == 0) ? ( mode = 0; changed = 1; );
+    btn(ix + sw + gp, yy, sw, rh, "X-Y", mode == 1) ? ( mode = 1; changed = 1; );
+    btn(ix + 2 * (sw + gp), yy, sw, rh, "Scope", mode == 2) ? ( mode = 2; changed = 1; );
+    yy += rh + gp;
+    // phosphor swatches
+    sw = (iw - 3 * gp) / 4; k = 0;
+    loop(4,
+      k == 0 ? ( gfx_r = 0.42; gfx_g = 1; gfx_b = 0.52; ) : k == 1 ? ( gfx_r = 0.62; gfx_g = 0.82; gfx_b = 1; ) :
+      k == 2 ? ( gfx_r = 1; gfx_g = 0.66; gfx_b = 0.2; ) : ( gfx_r = gfx_g = gfx_b = 1; );
+      gfx_a = phos == k ? 1 : 0.35;
+      rrect(ix + k * (sw + gp), yy, sw, rh, 5 * r);
+      phos == k ? ( gfx_r = gfx_g = gfx_b = 1; gfx_a = 1; gfx_roundrect(ix + k * (sw + gp) - 1, yy - 1, sw + 1, rh + 1, 5 * r, 1); );
+      click && inr(ix + k * (sw + gp), yy, sw, rh) ? ( phos = k; changed = 1; );
+      k += 1;
+    );
+    yy += rh + gp;
+    gain_db = sld(1, ix, yy, iw, rh, "Gain", gain_db, -24, 24, "%+.1f dB"); yy += rh + gp;
+    pers_ms = sld(2, ix, yy, iw, rh, "Persistence", pers_ms, 5, 200, "%.0f ms"); yy += rh + gp;
+    beam = sld(3, ix, yy, iw, rh, "Beam", beam, 0.1, 4, "%.2f"); yy += rh + gp;
+    glow = sld(4, ix, yy, iw, rh, "Glow", glow, 0, 1.5, "%.2f"); yy += rh + gp;
+    mode == 2 ? (
+      tb_ms = sld(5, ix, yy, iw, rh, "Timebase", tb_ms, 1, 100, "%.1f ms"); yy += rh + gp;
+      sw = (iw - gp) / 2;
+      btn(ix, yy, sw, rh, "Stereo L/R", scopech == 0) ? ( scopech = 0; changed = 1; );
+      btn(ix + sw + gp, yy, sw, rh, "Mono", scopech == 1) ? ( scopech = 1; changed = 1; );
+      yy += rh + gp;
+    );
+    btn(ix, yy, iw, rh, grat ? "Graticule: on" : "Graticule: off", 0) ? ( grat = !grat; changed = 1; );
+    changed ? ( sliderchange(-1); );
+  );
+);
+
+) : (
+  gfx_r = gfx_g = gfx_b = 0.02; gfx_a = 1; gfx_mode = 0;
+  W > 0 && H > 0 ? ( gfx_rect(0, 0, W, H); );
+);
+lastcap = mouse_cap;
