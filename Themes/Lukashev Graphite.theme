@@ -1,7 +1,8 @@
 @description Lukashev Graphite (REAPER theme)
-@version 42
+@version 43
 @author Ilia Lukashev
 @changelog
+  Longer TCP volume fader and fader cap
   TCP volume is a horizontal fader in the standard layouts
   New optional track panel layout "Big": large framed track name, three rows of controls
   Thin divider between the track colour block and the insert column in the TCP
@@ -18,8 +19,8 @@
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 42.ReaperThemeZip
+  Lukashev Graphite 43.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 42.
+  After installing: Options > Themes > Lukashev Graphite 43.
