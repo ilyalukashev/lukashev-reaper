@@ -1,7 +1,8 @@
 -- @description LKSHV Stem Matrix — one-click mute / solo for _STM tracks
--- @version 1.4
+-- @version 1.5
 -- @author Ilia Lukashev
 -- @changelog
+--   Donate button (heart after the last stem, and in the right-click menu)
 --   Shift+click: select the stem and scroll the track list so it sits at the top
 --   Drag across buttons with the left button held to mute / unmute (Cmd: solo) several stems in one gesture
 --   Renamed LG -> LKSHV (saved stem-name rules are carried over)
@@ -22,6 +23,7 @@ package.path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
 local ImGui = require 'imgui' '0.9.3'
 
 local NAME = "LKSHV Stem Matrix"
+local DONATE_URL = "https://lukashev.studio/donate"   -- where the heart button leads
 local OLD_NAME = "LG Stem Matrix"   -- pre-rename: saved rules are still read from it
 local ctx = ImGui.CreateContext(NAME)
 local font = ImGui.CreateFont('sans-serif', 13)
@@ -145,6 +147,30 @@ local function beginDrag(s, solo)
   paint(s)
 end
 
+local function openURL(url)
+  if reaper.CF_ShellExecute then reaper.CF_ShellExecute(url)
+  elseif reaper.GetOS():match("OSX") or reaper.GetOS():match("mac") then os.execute("open '" .. url .. "'")
+  else os.execute('start "" "' .. url .. '"') end
+end
+
+-- small heart pill, same height as the stem buttons
+local function donateButton()
+  local w = BTN_H + 4
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local clicked = ImGui.InvisibleButton(ctx, "##donate", w, BTN_H)
+  local hov = ImGui.IsItemHovered(ctx)
+  local dl = ImGui.GetWindowDrawList(ctx)
+  ImGui.DrawList_AddRectFilled(dl, x, y, x + w, y + BTN_H, hov and C.accent or C.btnMute, 6)
+  ImGui.DrawList_AddRect(dl, x, y, x + w, y + BTN_H, C.edge, 6, 0, 1)
+  local col = hov and 0xFFFFFFFF or 0xFF5A7AFF
+  local cx, cy = x + w / 2, y + BTN_H / 2 - 1
+  ImGui.DrawList_AddCircleFilled(dl, cx - 2.7, cy - 1.8, 3.4, col)
+  ImGui.DrawList_AddCircleFilled(dl, cx + 2.7, cy - 1.8, 3.4, col)
+  ImGui.DrawList_AddTriangleFilled(dl, cx - 5.95, cy - 0.7, cx + 5.95, cy - 0.7, cx, cy + 5.6, col)
+  if hov and not drag then ImGui.SetTooltip(ctx, "Donate - support the development\n" .. DONATE_URL) end
+  if clicked then openURL(DONATE_URL) end
+end
+
 -- scroll the arrange / TCP so this track is the first one visible
 local function scrollToTop(tr)
   reaper.SetOnlyTrackSelected(tr)
@@ -258,6 +284,8 @@ local function frame()
           elseif drag and ImGui.IsMouseDown(ctx, ImGui.MouseButton_Left) then paint(s) end
         end
       end
+      if #list % cols ~= 0 then ImGui.SameLine(ctx) end
+      donateButton()
       if drag and not ImGui.IsMouseDown(ctx, ImGui.MouseButton_Left) then endDrag() end
     end
     local docked = ImGui.IsWindowDocked(ctx)
@@ -276,6 +304,7 @@ local function frame()
       if ImGui.MenuItem(ctx, docked and "Undock" or "Dock in REAPER docker") then
         dockWanted = docked and 0 or -1
       end
+      if ImGui.MenuItem(ctx, "Donate...") then openURL(DONATE_URL) end
       if ImGui.MenuItem(ctx, "Close") then open = false end
       ImGui.EndPopup(ctx)
     end
