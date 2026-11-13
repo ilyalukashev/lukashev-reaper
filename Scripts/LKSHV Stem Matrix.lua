@@ -1,7 +1,8 @@
 -- @description LKSHV Stem Matrix — one-click mute / solo for _STM tracks
--- @version 1.3
+-- @version 1.4
 -- @author Ilia Lukashev
 -- @changelog
+--   Shift+click: select the stem and scroll the track list so it sits at the top
 --   Drag across buttons with the left button held to mute / unmute (Cmd: solo) several stems in one gesture
 --   Renamed LG -> LKSHV (saved stem-name rules are carried over)
 --   Which tracks count as stems is configurable per project (e.g. "bus") with a global default ("_stm")
@@ -9,6 +10,7 @@
 --   A compact button matrix of every stem track. By default a stem is a track whose name ends in "_STM"
 --   (any case); right-click > Match track names sets other rules per project, e.g. "bus" or "_stm, bus".
 --   Click: mute / unmute the stem. Cmd+click (Ctrl on Windows): solo / unsolo.
+--   Shift+click: select the stem and scroll the track list so it is the top track.
 --   Right-click: unmute all, unsolo all, dock / undock. Made to live in a REAPER docker.
 --   Requires ReaImGui (ReaPack: ReaTeam Extensions).
 
@@ -143,6 +145,36 @@ local function beginDrag(s, solo)
   paint(s)
 end
 
+-- scroll the arrange / TCP so this track is the first one visible
+local function scrollToTop(tr)
+  reaper.SetOnlyTrackSelected(tr)
+  reaper.SetMixerScroll(tr)
+  local y = reaper.GetMediaTrackInfo_Value(tr, "I_TCPY")
+  if reaper.JS_Window_FindChildByID then                          -- exact, when js_ReaScriptAPI is installed
+    local arrange = reaper.JS_Window_FindChildByID(reaper.GetMainHwnd(), 1000)
+    local ok, pos = reaper.JS_Window_GetScrollInfo(arrange, "v")
+    if arrange and ok then
+      reaper.JS_Window_SetScrollPos(arrange, "v", math.max(0, math.floor(pos + y)))
+      reaper.UpdateArrange()
+      return
+    end
+  end
+  -- fallback: step the scroll until the track's top edge reaches the top of the view
+  local dir = y > 0 and 1 or -1
+  for _ = 1, 2000 do
+    if y == 0 then break end
+    reaper.CSurf_OnScroll(0, dir)
+    local now = reaper.GetMediaTrackInfo_Value(tr, "I_TCPY")
+    if now == y then break end                                   -- reached the end of the list
+    if (now > 0) ~= (y > 0) then                                 -- stepped past the top: keep the closer position
+      if math.abs(now) > math.abs(y) then reaper.CSurf_OnScroll(0, -dir) end
+      break
+    end
+    y = now
+  end
+  reaper.UpdateArrange()
+end
+
 local function endDrag()
   local what = drag.parm == "I_SOLO" and (drag.val > 0 and "Solo" or "Unsolo") or (drag.val > 0 and "Mute" or "Unmute")
   reaper.Undo_OnStateChange(drag.n == 1 and (what .. " stem " .. drag.label) or (what .. " " .. drag.n .. " stems"))
@@ -188,7 +220,7 @@ local function stemButton(i, s, w)
   ImGui.DrawList_AddText(dl, tx, y + (BTN_H - th) / 2, s.mute and C.textMute or C.text, label)
   if hov and not drag then
     ImGui.SetTooltip(ctx, s.label .. "\nClick: " .. (s.mute and "unmute" or "mute") ..
-      "   Cmd+click: " .. (s.solo and "unsolo" or "solo") .. "\nDrag across buttons: several at once")
+      "   Cmd+click: " .. (s.solo and "unsolo" or "solo") .. "\nDrag across buttons: several at once\nShift+click: go to track")
   end
   return hov
 end
@@ -221,7 +253,8 @@ local function frame()
       for i, s in ipairs(list) do
         if (i - 1) % cols ~= 0 then ImGui.SameLine(ctx) end
         if stemButton(i, s, w) then
-          if not drag and ImGui.IsMouseClicked(ctx, ImGui.MouseButton_Left) then beginDrag(s, cmd)
+          if not drag and ImGui.IsMouseClicked(ctx, ImGui.MouseButton_Left) then
+            if (mods & ImGui.Mod_Shift) ~= 0 then scrollToTop(s.tr) else beginDrag(s, cmd) end
           elseif drag and ImGui.IsMouseDown(ctx, ImGui.MouseButton_Left) then paint(s) end
         end
       end
