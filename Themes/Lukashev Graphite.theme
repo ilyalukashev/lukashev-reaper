@@ -1,7 +1,9 @@
 @description Lukashev Graphite (REAPER theme)
-@version 44
+@version 45
 @author Ilia Lukashev
 @changelog
+  Typography pass: one family, five-step size scale, consistent roles; smaller ruler and marker lane text
+  Automation lanes in the TCP get a very slight blue cast
   Wider send slots in the TCP bottom section: send names readable
   Longer TCP volume fader and fader cap
   TCP volume is a horizontal fader in the standard layouts
@@ -20,8 +22,8 @@
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 44.ReaperThemeZip
+  Lukashev Graphite 45.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 44.
+  After installing: Options > Themes > Lukashev Graphite 45.
