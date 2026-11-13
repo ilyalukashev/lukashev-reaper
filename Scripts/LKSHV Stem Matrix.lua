@@ -1,7 +1,8 @@
 -- @description LKSHV Stem Matrix — one-click mute / solo for _STM tracks
--- @version 1.5
+-- @version 1.6
 -- @author Ilia Lukashev
 -- @changelog
+--   A plain click on a soloed stem takes the solo off instead of muting it
 --   Donate button (heart after the last stem, and in the right-click menu)
 --   Shift+click: select the stem and scroll the track list so it sits at the top
 --   Drag across buttons with the left button held to mute / unmute (Cmd: solo) several stems in one gesture
@@ -141,7 +142,8 @@ local function paint(s)
 end
 
 local function beginDrag(s, solo)
-  if solo then drag = { parm = "I_SOLO", val = s.solo and 0 or 2 }      -- 2 = solo in place
+  if s.solo and not solo then drag = { parm = "I_SOLO", val = 0 }       -- plain click on a soloed stem: unsolo
+  elseif solo then drag = { parm = "I_SOLO", val = s.solo and 0 or 2 }  -- 2 = solo in place
   else drag = { parm = "B_MUTE", val = s.mute and 0 or 1 } end
   drag.done, drag.n, drag.label = {}, 0, s.label
   paint(s)
@@ -245,7 +247,7 @@ local function stemButton(i, s, w)
   local _, th = ImGui.CalcTextSize(ctx, label)
   ImGui.DrawList_AddText(dl, tx, y + (BTN_H - th) / 2, s.mute and C.textMute or C.text, label)
   if hov and not drag then
-    ImGui.SetTooltip(ctx, s.label .. "\nClick: " .. (s.mute and "unmute" or "mute") ..
+    ImGui.SetTooltip(ctx, s.label .. "\nClick: " .. (s.solo and "unsolo" or (s.mute and "unmute" or "mute")) ..
       "   Cmd+click: " .. (s.solo and "unsolo" or "solo") .. "\nDrag across buttons: several at once\nShift+click: go to track")
   end
   return hov
