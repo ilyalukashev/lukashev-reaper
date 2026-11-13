@@ -1,5 +1,5 @@
 @description Lukashev Graphite (REAPER theme)
-@version 45
+@version 46
 @author Ilia Lukashev
 @changelog
   Typography pass: one family, five-step size scale, consistent roles; smaller ruler and marker lane text
@@ -22,8 +22,8 @@
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 45.ReaperThemeZip
+  Lukashev Graphite 46.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 45.
+  After installing: Options > Themes > Lukashev Graphite 46.
