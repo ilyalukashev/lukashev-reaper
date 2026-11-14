@@ -1,7 +1,11 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.3
+-- @version 1.4
 -- @author Ilia Lukashev
 -- @changelog
+--   Fixes: "(8 out)" / "(mono)" suffixes no longer become brands; list view could not scroll to its last rows;
+--     grid rows left a blank strip while scrolling; Settings button pushed off the top bar; hidden formats and
+--     favourites of a non-preferred format missing from Hidden / Favourites; empty undo points on failed inserts;
+--     arrow keys moved the selection while typing; non-Latin names cut mid-character
 --   Hide plugin formats per brand (right-click a brand > Formats)
 --   Sort the plugin list by name, brand or type
 --   Renamed LG -> LKSHV (settings, tags and images are carried over automatically)
@@ -257,6 +261,26 @@ local function splitDev(rest)
   return rest, ""
 end
 
+-- REAPER appends channel variants after the developer: "Kontakt 7 (Native Instruments) (16 out)", "... (mono)"
+local function isVariant(g)
+  g = g:lower()
+  return g:match("^%d+ out$") or g:match("^%d+ch$") or g:match("^%d+%->%d+ch$") or g == "mono" or g == "stereo"
+      or g == "x64" or g == "x86" or g:match("^%d+ in$") or g:match("^%d+ in %d+ out$")
+end
+-- returns: plugin name, developer, variant ("" when none)
+local function splitName(rest)
+  local variant = ""
+  while true do
+    local base, group = splitDev(rest)
+    if group ~= "" and isVariant(group) then
+      variant = variant == "" and group or (group .. ", " .. variant)
+      rest = base
+    else
+      return base, group, variant
+    end
+  end
+end
+
 local function sanitize(s) return (s:gsub('[/\\:%*%?"<>|]', "_"):gsub("%s+", " ")) end
 
 local all, byName = {}, {}
@@ -275,13 +299,14 @@ local function scan()
     if not typ then typ, rest = "FX", name end
     local inst = typ:sub(-1) == "i" and typ ~= "JS"
     local fmt = inst and typ:sub(1, -2) or typ
-    local base, dev = splitDev(rest)
+    local base0, dev, variant = splitName(rest)
+    local base = variant ~= "" and (base0 .. " (" .. variant .. ")") or base0
     if fmt == "JS" and dev == "" then dev = "JSFX" end
     local p = {
       name = name, ident = ident, fmt = fmt, inst = inst, base = base, dev = dev,
       lbase = base:lower(), ldev = dev:lower(),
       key = base:lower() .. "|" .. dev:lower(),
-      img = sanitize((dev ~= "" and (dev .. " - ") or "") .. base),
+      img = sanitize((dev ~= "" and (dev .. " - ") or "") .. base0),   -- variants share one image
     }
     p.search = (p.lbase .. " " .. p.ldev .. " " .. fmt:lower() .. (inst and " instrument" or ""))
     all[#all + 1] = p
@@ -293,7 +318,13 @@ local function scan()
       devFormats[dev][fmt] = (devFormats[dev][fmt] or 0) + 1
     end
   end
-  table.sort(all, function(a, b) if a.lbase ~= b.lbase then return a.lbase < b.lbase end return a.ldev < b.ldev end)
+  table.sort(all, function(a, b)
+    if a.lbase ~= b.lbase then return a.lbase < b.lbase end
+    if a.ldev ~= b.ldev then return a.ldev < b.ldev end
+    local ra, rb = FORMAT_RANK[a.fmt] or 9, FORMAT_RANK[b.fmt] or 9
+    if ra ~= rb then return ra < rb end
+    return a.name < b.name
+  end)
   -- preferred-format winner for each plugin (for de-duplication)
   local best = {}
   for _, p in ipairs(all) do
@@ -450,7 +481,8 @@ local function say(msg) status, statusT = msg, reaper.time_precise() end
 local function captureImage(p)
   if not IS_MAC then say('Capture works on macOS; use "Load image..." instead'); return end
   local dst = IMG_DIR .. SEP .. p.img .. ".png"
-  local tmp = os.tmpname() .. ".png"
+  local tmp = "/tmp/lkshv_fxbrowser_manual.png"
+  os.remove(tmp)
   say("Click the plugin window to capture (Esc to cancel)")
   os.execute("screencapture -iWo -x " .. shellQuote(tmp))
   local f = io.open(tmp, "rb")
@@ -469,7 +501,9 @@ local function loadImageFile(p)
   local inF = io.open(file, "rb"); if not inF then return end
   local data = inF:read("*a"); inF:close()
   for _, e in ipairs({ "png", "jpg", "jpeg" }) do os.remove(IMG_DIR .. SEP .. p.img .. "." .. e) end
-  local outF = io.open(IMG_DIR .. SEP .. p.img .. "." .. ext, "wb"); outF:write(data); outF:close()
+  local outF = io.open(IMG_DIR .. SEP .. p.img .. "." .. ext, "wb")
+  if not outF then say("Cannot write to the images folder"); return end
+  outF:write(data); outF:close()
   dropImage(p.img); scanImages(); say("Image set for " .. p.base)
 end
 
@@ -683,7 +717,6 @@ end
 
 ------------------------------------------------------------------ insert
 local function insertTo(p, track, take)
-  reaper.Undo_BeginBlock()
   local idx
   if take then
     idx = reaper.TakeFX_AddByName(take, p.name, -1)
@@ -692,8 +725,8 @@ local function insertTo(p, track, take)
     idx = reaper.TrackFX_AddByName(track, p.name, false, -1)
     if idx >= 0 and S.openUI then reaper.TrackFX_Show(track, idx, 3) end
   end
-  reaper.Undo_EndBlock("Insert " .. p.base, -1)
   if idx and idx >= 0 then
+    reaper.Undo_OnStateChangeEx("Insert " .. p.base, -1, -1)
     pushRecent(p.name)
     local _, tn = reaper.GetTrackName(track or reaper.GetMediaItemTake_Track(take))
     say(p.base .. " -> " .. (take and "item on " or "") .. tn)
@@ -704,7 +737,6 @@ end
 
 local function insert(p, mode)
   if not p then return end
-  reaper.Undo_BeginBlock()
   reaper.PreventUIRefresh(1)
   local n = 0
   if mode == "items" then
@@ -728,7 +760,7 @@ local function insert(p, mode)
     end
   end
   reaper.PreventUIRefresh(-1)
-  reaper.Undo_EndBlock("Insert " .. p.base, -1)
+  if n > 0 then reaper.Undo_OnStateChangeEx("Insert " .. p.base, -1, -1) end   -- no undo point when nothing was added
   if n == 0 then
     say(mode == "items" and "Select items first" or "Select a track first")
     return false
@@ -759,7 +791,9 @@ local function rebuild()
     local fmtOff = p.fmtHidden and not category:match("^folder:")     -- tagged entries stay visible in their tag
     if category == "hidden" then ok = (hidden and p.primary) or p.fmtHidden
     elseif hidden or fmtOff then ok = false end
-    if category ~= "recent" and S.hideDupes and not p.primary and not category:match("^fmt:") and not category:match("^folder:") then ok = false end
+    -- one entry per plugin - except where the entry itself was picked by the user (favourites, tags, recent, a format)
+    if S.hideDupes and not p.primary and category ~= "recent" and category ~= "fav" and category ~= "hidden"
+       and not category:match("^fmt:") and not category:match("^folder:") then ok = false end
     if ok and category ~= "hidden" then
       if category == "fav" then ok = favSet[p.name] == true
       elseif category == "inst" then ok = p.inst
@@ -1040,7 +1074,7 @@ do
 end
 local topoKey, topoArrays = nil, {}
 local function drawTopo(dl, ox, oy, w, h)
-  local key = ("%d,%d,%d,%d"):format(ox, oy, w, h)
+  local key = ("%d,%d,%d,%d"):format(math.floor(ox), math.floor(oy), math.floor(w), math.floor(h))
   if key ~= topoKey then
     topoKey, topoArrays = key, {}
     local k = math.max(w / 1500, h / 1000)
@@ -1157,7 +1191,11 @@ end
 local function ellipsize(text, maxW)
   if ImGui.CalcTextSize(ctx, text) <= maxW then return text end
   local s = text
-  while #s > 1 and ImGui.CalcTextSize(ctx, s .. "...") > maxW do s = s:sub(1, -2) end
+  while #s > 1 and ImGui.CalcTextSize(ctx, s .. "...") > maxW do
+    s = s:sub(1, -2)
+    while #s > 1 and s:byte(-1) >= 0x80 and s:byte(-1) < 0xC0 do s = s:sub(1, -2) end   -- never cut inside a UTF-8 character
+    if #s > 0 and s:byte(-1) >= 0xC0 then s = s:sub(1, -2) end
+  end
   return s .. "..."
 end
 
@@ -1257,7 +1295,9 @@ local function contextMenu(p)
     if ImGui.MenuItem(ctx, "Insert as input FX", "Shift+Enter") then pending = { p, "input" } end
     ImGui.Separator(ctx)
     if ImGui.MenuItem(ctx, favSet[p.name] and "Remove from favourites" or "Add to favourites") then
-      favSet[p.name] = (not favSet[p.name]) or nil; saveFav(); dirty = true
+      local on = (not favSet[p.name]) or nil
+      for _, q in ipairs(list) do favSet[q.name] = on end       -- the whole selection follows the clicked plugin
+      saveFav(); dirty = true
     end
     ImGui.Separator(ctx)
     if IS_MAC and ImGui.MenuItem(ctx, many and ("Capture images automatically (%d)"):format(#list)
@@ -1561,6 +1601,7 @@ local function gridView(w)
   local rows = math.ceil(#results / cols)
   local dl = ImGui.GetWindowDrawList(ctx)
   local deferred = {}
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, gap, gap)      -- row pitch must equal what the clipper is told
   ImGui.ListClipper_Begin(clipper, rows, cardH + gap)
   if scrollToSel then ImGui.ListClipper_IncludeItemByIndex(clipper, (sel - 1) // cols, (sel - 1) // cols + 1) end
   while ImGui.ListClipper_Step(clipper) do
@@ -1587,6 +1628,7 @@ local function gridView(w)
       end
     end
   end
+  ImGui.PopStyleVar(ctx)
   table.sort(deferred, function(a, b) return a[4] < b[4] end)
   for _, d in ipairs(deferred) do drawCard(dl, d[1], d[2], d[3], cardW, cardH, imgH, d[4], d[5]) end
 end
@@ -1594,6 +1636,7 @@ end
 local function listView(w)
   local rowH = 26
   local dl = ImGui.GetWindowDrawList(ctx)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 8, 2)          -- row pitch must equal what the clipper is told
   ImGui.ListClipper_Begin(clipper, #results, rowH + 2)
   if scrollToSel then ImGui.ListClipper_IncludeItemByIndex(clipper, sel - 1, sel) end
   while ImGui.ListClipper_Step(clipper) do
@@ -1619,6 +1662,7 @@ local function listView(w)
       ImGui.DrawList_AddText(dl, x1 + 28, ty, C.text, ellipsize(p.base, (x2 - x1) - rw - 50))
     end
   end
+  ImGui.PopStyleVar(ctx)
 end
 
 ------------------------------------------------------------------ main loop
@@ -1633,8 +1677,8 @@ local function handleKeys(cols)
   local function move(d) if n > 0 then sel = math.min(n, math.max(1, sel + d)); scrollToSel = true; selectOnly(results[sel]) end end
   if ImGui.IsKeyPressed(ctx, ImGui.Key_DownArrow) then move(step) end
   if ImGui.IsKeyPressed(ctx, ImGui.Key_UpArrow) then move(-step) end
-  if S.images and ImGui.IsKeyPressed(ctx, ImGui.Key_RightArrow) and not ImGui.IsItemActive(ctx) then move(1) end
-  if S.images and ImGui.IsKeyPressed(ctx, ImGui.Key_LeftArrow) and not ImGui.IsItemActive(ctx) then move(-1) end
+  if S.images and ImGui.IsKeyPressed(ctx, ImGui.Key_RightArrow) and not ImGui.IsAnyItemActive(ctx) then move(1) end
+  if S.images and ImGui.IsKeyPressed(ctx, ImGui.Key_LeftArrow) and not ImGui.IsAnyItemActive(ctx) then move(-1) end
   if ImGui.IsKeyPressed(ctx, ImGui.Key_Enter) or ImGui.IsKeyPressed(ctx, ImGui.Key_KeypadEnter) then
     local mode = cmd and "items" or (shift and "input" or "tracks")
     local list = selectedList()
@@ -1685,7 +1729,9 @@ local function frameUI()
 
     -- top bar: search · view toggles
     if focusSearch then ImGui.SetKeyboardFocusHere(ctx); focusSearch = false end
-    ImGui.SetNextItemWidth(ctx, math.max(200, availW - 330))
+    -- everything right of the search field: Images, Follow track, Sort, [size slider], Settings
+    local reserve = 400 + (S.images and 118 or 0)
+    ImGui.SetNextItemWidth(ctx, math.max(120, availW - reserve))
     local changed, q = ImGui.InputTextWithHint(ctx, "##search", "Search plugins, developers, formats...", query,
       ImGui.InputTextFlags_AutoSelectAll)
     if changed then query = q; dirty = true; sel = 1 end
@@ -1711,7 +1757,7 @@ local function frameUI()
     if S.images then
       ImGui.SetNextItemWidth(ctx, 110)
       rv, S.thumb = ImGui.SliderInt(ctx, "##size", S.thumb, 120, 320, "")
-      if rv then saveSettings() end
+      if ImGui.IsItemDeactivatedAfterEdit(ctx) then saveSettings() end       -- once, not on every dragged frame
       ImGui.SameLine(ctx)
     end
     if ImGui.Button(ctx, "Settings") then showSettings = not showSettings end
@@ -1775,7 +1821,9 @@ local function frameUI()
       local nh = 0
       for _ in pairs(hidPlug) do nh = nh + 1 end
       for _ in pairs(hidDev) do nh = nh + 1 end
-      if nh > 0 then sideItem("Hidden", "hidden", nh, "eye") end
+      for _ in pairs(hidFmt) do nh = nh + 1 end
+      if nh > 0 then sideItem("Hidden", "hidden", nh, "eye")
+      elseif category == "hidden" then category = "all"; dirty = true end
       if category == "hidden" then
         ImGui.PushFont(ctx, fontSmall)
         for d in pairs(hidDev) do
