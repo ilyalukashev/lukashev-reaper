@@ -1,7 +1,8 @@
 @description Lukashev Graphite (REAPER theme)
-@version 46
+@version 47
 @author Ilia Lukashev
 @changelog
+  Full custom toolbar icon set (197 icons, 100/150/200%) bundled inside the theme
   Typography pass: one family, five-step size scale, consistent roles; smaller ruler and marker lane text
   Automation lanes in the TCP get a very slight blue cast
   Wider send slots in the TCP bottom section: send names readable
@@ -22,8 +23,8 @@
   Arrange grid: subtle measure/beat/sub-beat lines
   Mixer insert area ruled with thin lines; TCP FX slots centred vertically
 @provides
-  Lukashev Graphite 46.ReaperThemeZip
+  Lukashev Graphite 47.ReaperThemeZip
 @about
   Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours,
   a light arrange area and flat controls for long, comfortable sessions.
-  After installing: Options > Themes > Lukashev Graphite 46.
+  After installing: Options > Themes > Lukashev Graphite 47.
