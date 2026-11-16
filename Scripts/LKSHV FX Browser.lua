@@ -1,7 +1,9 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.4
+-- @version 1.5
 -- @author Ilia Lukashev
 -- @changelog
+--   Rename brands (right-click a brand > Rename brand...); names, hidden plugins and tags live in the Data folder
+--     and survive rescans, script updates and reinstalls
 --   Fixes: "(8 out)" / "(mono)" suffixes no longer become brands; list view could not scroll to its last rows;
 --     grid rows left a blank strip while scrolling; Settings button pushed off the top bar; hidden formats and
 --     favourites of a non-preferred format missing from Hidden / Favourites; empty undo points on failed inserts;
@@ -99,6 +101,20 @@ local recentList = loadList("recent")
 local _, hidPlug = loadList("hiddenPlugins")     -- plugin keys (all formats of a plugin)
 local _, hidDev = loadList("hiddenDevs")
 local _, hidFmt = loadList("hiddenFormats")     -- "Brand|FMT": that format is not shown for that brand
+local devAlias = {}                              -- original developer name -> the user's name for it
+do
+  local lines = loadList("brandNames")
+  for _, l in ipairs(lines) do
+    local o, n = l:match("^(.-)\t(.+)$")
+    if o and o ~= "" then devAlias[o] = n end
+  end
+end
+local function saveDevAlias()
+  local t = {}
+  for o, n in pairs(devAlias) do t[#t + 1] = o .. "\t" .. n end
+  table.sort(t)
+  writeList("brandNames", t)
+end
 local folders = {}          -- { {name=, set={}, n=} } in user order
 -- default track-name keywords for folders named like common instrument groups
 local KW_PRESETS = {
@@ -286,10 +302,11 @@ local function sanitize(s) return (s:gsub('[/\\:%*%?"<>|]', "_"):gsub("%s+", " "
 local all, byName = {}, {}
 local devCounts, devList = {}, {}
 local devFormats = {}                -- brand -> { FMT = number of plugins }
+local devOrigs = {}                  -- brand as shown -> { original developer names }
 local formatsPresent = {}
 
 local function scan()
-  all, byName, devCounts, devList, formatsPresent, devFormats = {}, {}, {}, {}, {}, {}
+  all, byName, devCounts, devList, formatsPresent, devFormats, devOrigs = {}, {}, {}, {}, {}, {}, {}
   local i = 0
   while true do
     local ok, name, ident = reaper.EnumInstalledFX(i)
@@ -302,13 +319,16 @@ local function scan()
     local base0, dev, variant = splitName(rest)
     local base = variant ~= "" and (base0 .. " (" .. variant .. ")") or base0
     if fmt == "JS" and dev == "" then dev = "JSFX" end
+    local odev = dev                                      -- the name REAPER reports: keys and image names stay on it
+    dev = devAlias[odev] or odev
+    if dev ~= "" then devOrigs[dev] = devOrigs[dev] or {}; devOrigs[dev][odev] = true end
     local p = {
       name = name, ident = ident, fmt = fmt, inst = inst, base = base, dev = dev,
       lbase = base:lower(), ldev = dev:lower(),
-      key = base:lower() .. "|" .. dev:lower(),
-      img = sanitize((dev ~= "" and (dev .. " - ") or "") .. base0),   -- variants share one image
+      key = base:lower() .. "|" .. odev:lower(),
+      img = sanitize((odev ~= "" and (odev .. " - ") or "") .. base0),   -- variants share one image
     }
-    p.search = (p.lbase .. " " .. p.ldev .. " " .. fmt:lower() .. (inst and " instrument" or ""))
+    p.search = (p.lbase .. " " .. p.ldev .. " " .. odev:lower() .. " " .. fmt:lower() .. (inst and " instrument" or ""))
     all[#all + 1] = p
     byName[name] = p
     formatsPresent[fmt] = true
@@ -1243,6 +1263,37 @@ local function setHiddenDev(dev, on)
   saveSet("hiddenDevs", hidDev); dirty = true
 end
 
+-- give a brand another name (or merge it into an existing one); newName == nil restores REAPER's names
+local function renameDev(dev, newName)
+  local origs = devOrigs[dev]
+  if not origs then return end
+  for o in pairs(origs) do
+    local n = newName or o
+    devAlias[o] = (n ~= o) and n or nil
+    if n ~= dev then                                      -- hidden state follows the brand to its new name
+      if hidDev[dev] then hidDev[n] = true end
+      local moved = {}
+      for k in pairs(hidFmt) do
+        local d, f = k:match("^(.*)|([^|]+)$")
+        if d == dev then moved[#moved + 1] = { k, n .. "|" .. f } end
+      end
+      for _, m in ipairs(moved) do hidFmt[m[1]] = nil; hidFmt[m[2]] = true end
+    end
+  end
+  if (newName or "") ~= dev then hidDev[dev] = nil end
+  saveDevAlias(); saveSet("hiddenDevs", hidDev); saveSet("hiddenFormats", hidFmt)
+  devSel = {}
+  if category == "devs" or category == "dev:" .. dev then category = "all" end
+  scan(); scanImages(); selectOnly(nil); dirty = true
+end
+local function askRenameDev(dev)
+  local ok, name = reaper.GetUserInputs("Rename brand", 1, "Brand name:,extrawidth=220", dev)
+  name = ok and name:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\t|]", " ") or ""
+  if name == "" or name == dev then return end
+  renameDev(dev, name)
+  say(dev .. " -> " .. name)
+end
+
 local function pluginsOfDevs(devset)
   local t = {}
   for _, q in ipairs(all) do if q.primary and devset[q.dev] then t[#t + 1] = q end end
@@ -1474,6 +1525,13 @@ local function sideItem(label, cat, count, ic)
     for _, d in ipairs(list) do dset[d] = true end
     captureMenu(pluginsOfDevs(dset))
     ImGui.Separator(ctx)
+    if #list == 1 then
+      if ImGui.MenuItem(ctx, "Rename brand...") then local d = dev; queue(function() askRenameDev(d) end) end
+      local renamed = false
+      for o in pairs(devOrigs[dev] or {}) do if o ~= dev then renamed = true end end
+      if renamed and ImGui.MenuItem(ctx, "Restore original name") then local d = dev; queue(function() renameDev(d, nil) end) end
+      ImGui.Separator(ctx)
+    end
     if ImGui.BeginMenu(ctx, "Formats") then                -- ticked = shown for this brand
       local fm = {}
       for _, d in ipairs(list) do for f in pairs(devFormats[d] or {}) do fm[f] = true end end
