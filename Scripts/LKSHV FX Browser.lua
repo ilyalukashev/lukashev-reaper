@@ -1,7 +1,8 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.5
+-- @version 1.6
 -- @author Ilia Lukashev
 -- @changelog
+--   Merge brands: select several (Cmd/Shift-click), right-click > Merge brands...
 --   Rename brands (right-click a brand > Rename brand...); names, hidden plugins and tags live in the Data folder
 --     and survive rescans, script updates and reinstalls
 --   Fixes: "(8 out)" / "(mono)" suffixes no longer become brands; list view could not scroll to its last rows;
@@ -1294,6 +1295,15 @@ local function askRenameDev(dev)
   say(dev .. " -> " .. name)
 end
 
+local function askMergeDevs(devs, suggested)
+  table.sort(devs, function(a, b) return a:lower() < b:lower() end)
+  local ok, name = reaper.GetUserInputs(("Merge %d brands"):format(#devs), 1, "Name of the merged brand:,extrawidth=220", suggested)
+  name = ok and name:gsub("^%s+", ""):gsub("%s+$", ""):gsub("[\t|]", " ") or ""
+  if name == "" then return end
+  for _, d in ipairs(devs) do if d ~= name then renameDev(d, name) end end
+  say(("%d brands -> %s"):format(#devs, name))
+end
+
 local function pluginsOfDevs(devset)
   local t = {}
   for _, q in ipairs(all) do if q.primary and devset[q.dev] then t[#t + 1] = q end end
@@ -1525,11 +1535,18 @@ local function sideItem(label, cat, count, ic)
     for _, d in ipairs(list) do dset[d] = true end
     captureMenu(pluginsOfDevs(dset))
     ImGui.Separator(ctx)
+    if #list > 1 then
+      if ImGui.MenuItem(ctx, ("Merge %d brands..."):format(#list)) then
+        local l, d = list, dev
+        queue(function() askMergeDevs(l, d) end)
+      end
+      ImGui.Separator(ctx)
+    end
     if #list == 1 then
       if ImGui.MenuItem(ctx, "Rename brand...") then local d = dev; queue(function() askRenameDev(d) end) end
       local renamed = false
       for o in pairs(devOrigs[dev] or {}) do if o ~= dev then renamed = true end end
-      if renamed and ImGui.MenuItem(ctx, "Restore original name") then local d = dev; queue(function() renameDev(d, nil) end) end
+      if renamed and ImGui.MenuItem(ctx, "Restore original names (un-merge)") then local d = dev; queue(function() renameDev(d, nil) end) end
       ImGui.Separator(ctx)
     end
     if ImGui.BeginMenu(ctx, "Formats") then                -- ticked = shown for this brand
