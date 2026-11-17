@@ -1,7 +1,8 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.7
+-- @version 1.8
 -- @author Ilia Lukashev
 -- @changelog
+--   Donate button opens taplink.cc/lukashevmixing
 --   Search: clicking or typing in the search field leaves the suggested tag and searches all plugins; pick a brand
 --     or category to narrow it; the search clears after a plugin is inserted
 --   Favourites: click the star on a card or list row (also Cmd+D, or right-click > Add to favourites)
@@ -32,7 +33,7 @@ package.path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
 local ImGui = require 'imgui' '0.9.3'
 
 local SCRIPT = "LKSHV FX Browser"
-local DONATE_URL = "https://lukashev.studio/donate"   -- where the footer heart button leads
+local DONATE_URL = "https://taplink.cc/lukashevmixing"   -- where the footer heart button leads
 local EXT = "LKSHV_FXBrowser"
 local OLD_EXT = "LG_FXBrowser"                         -- pre-rename name: settings are read from it once
 local IS_MAC = reaper.GetOS():match("OSX") or reaper.GetOS():match("mac")

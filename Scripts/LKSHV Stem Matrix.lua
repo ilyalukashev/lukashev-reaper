@@ -1,7 +1,8 @@
 -- @description LKSHV Stem Matrix — one-click mute / solo for _STM tracks
--- @version 1.6
+-- @version 1.7
 -- @author Ilia Lukashev
 -- @changelog
+--   Donate button opens taplink.cc/lukashevmixing
 --   A plain click on a soloed stem takes the solo off instead of muting it
 --   Donate button (heart after the last stem, and in the right-click menu)
 --   Shift+click: select the stem and scroll the track list so it sits at the top
@@ -24,7 +25,7 @@ package.path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
 local ImGui = require 'imgui' '0.9.3'
 
 local NAME = "LKSHV Stem Matrix"
-local DONATE_URL = "https://lukashev.studio/donate"   -- where the heart button leads
+local DONATE_URL = "https://taplink.cc/lukashevmixing"   -- where the heart button leads
 local OLD_NAME = "LG Stem Matrix"   -- pre-rename: saved rules are still read from it
 local ctx = ImGui.CreateContext(NAME)
 local font = ImGui.CreateFont('sans-serif', 13)
