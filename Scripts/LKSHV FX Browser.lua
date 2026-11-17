@@ -1,7 +1,10 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.6
+-- @version 1.7
 -- @author Ilia Lukashev
 -- @changelog
+--   Search: clicking or typing in the search field leaves the suggested tag and searches all plugins; pick a brand
+--     or category to narrow it; the search clears after a plugin is inserted
+--   Favourites: click the star on a card or list row (also Cmd+D, or right-click > Add to favourites)
 --   Merge brands: select several (Cmd/Shift-click), right-click > Merge brands...
 --   Rename brands (right-click a brand > Rename brand...); names, hidden plugins and tags live in the Data folder
 --     and survive rescans, script updates and reinstalls
@@ -793,6 +796,8 @@ end
 
 ------------------------------------------------------------------ filtering
 local query, category = "", "all"     -- category: all/fav/recent/inst/fx/fmt:X/dev:X
+local searchGen = 0                   -- bumping it recreates the search field (an active field keeps its own text)
+local searchLeftTag = false           -- the search moved us out of a suggested tag: go back to it once the search is done
 local results, sel = {}, 1
 local dirty = true
 
@@ -1226,6 +1231,16 @@ local function initials(p)
   return (a .. b):upper()
 end
 
+local function toggleFav(p)
+  favSet[p.name] = (not favSet[p.name]) or nil
+  saveFav(); dirty = true
+  say(p.base .. (favSet[p.name] and " added to favourites" or " removed from favourites"))
+end
+local function inRect(x, y, w, h)
+  local mx, my = ImGui.GetMousePos(ctx)
+  return mx and mx >= x and mx < x + w and my >= y and my < y + h
+end
+
 local function selectOnly(p) msel = {}; nsel = 0; if p then msel[p.name] = true; nsel = 1 end end
 local function selectedList()
   local t = {}
@@ -1579,7 +1594,7 @@ end
 
 local function star(dl, x, y, on)          -- drawn, not a glyph: works with any font
   local cx, cy, R, r = x + 7, y + 7, 6.5, 2.7
-  local col = on and C.star or 0xFFFFFF30
+  local col = on and C.star or 0xFFFFFF48
   local pts = {}
   for k = 0, 9 do
     local a = -math.pi / 2 + k * math.pi / 5
@@ -1691,8 +1706,12 @@ local function gridView(w)
         ImGui.InvisibleButton(ctx, "##c" .. i, cardW, cardH)
         if ImGui.IsItemActive(ctx) and ImGui.IsMouseDragging(ctx, 0, 6) then drag = p end
         local hov = ImGui.IsItemHovered(ctx)
-        if ImGui.IsItemClicked(ctx, 0) then clickSelect(i) end
-        if hov and ImGui.IsMouseDoubleClicked(ctx, 0) then pending = { p, "tracks" } end
+        local onStar = hov and inRect(x + cardW - 30, y + imgH + 3, 28, 26)
+        if onStar then ImGui.SetTooltip(ctx, favSet[p.name] and "Remove from favourites" or "Add to favourites") end
+        if ImGui.IsItemClicked(ctx, 0) then
+          if onStar then toggleFav(p) else clickSelect(i) end
+        end
+        if hov and not onStar and ImGui.IsMouseDoubleClicked(ctx, 0) then pending = { p, "tracks" } end
         contextMenu(p)
         if scrollToSel and i == sel then ImGui.SetScrollHereY(ctx, 0.5); scrollToSel = false end
         -- card (hovered / animating cards are drawn last so the magnified one sits on top)
@@ -1718,10 +1737,17 @@ local function listView(w)
     local r0, r1 = ImGui.ListClipper_GetDisplayRange(clipper)
     for i = r0 + 1, r1 do
       local p = results[i]
+      local rx, ry = ImGui.GetCursorScreenPos(ctx)
+      local onStar = inRect(rx, ry, 26, rowH)
       if ImGui.Selectable(ctx, "##r" .. i, msel[p.name] or (nsel == 0 and i == sel), ImGui.SelectableFlags_AllowDoubleClick, 0, rowH) then
-        clickSelect(i)
-        if ImGui.IsMouseDoubleClicked(ctx, 0) then pending = { p, "tracks" } end
+        if onStar then
+          if not ImGui.IsMouseDoubleClicked(ctx, 0) then toggleFav(p) end
+        else
+          clickSelect(i)
+          if ImGui.IsMouseDoubleClicked(ctx, 0) then pending = { p, "tracks" } end
+        end
       end
+      if onStar and ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx, favSet[p.name] and "Remove from favourites" or "Add to favourites") end
       if ImGui.IsItemActive(ctx) and ImGui.IsMouseDragging(ctx, 0, 6) then drag = p end
       contextMenu(p)
       if scrollToSel and i == sel then ImGui.SetScrollHereY(ctx, 0.5); scrollToSel = false end
@@ -1769,7 +1795,7 @@ local function handleKeys(cols)
     local p = results[sel]; favSet[p.name] = (not favSet[p.name]) or nil; saveFav(); dirty = true
   end
   if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape) then
-    if query ~= "" then query = ""; dirty = true; focusSearch = true else return "close" end
+    if query ~= "" then query = ""; dirty = true; focusSearch = true; searchGen = searchGen + 1 else return "close" end
   end
 end
 
@@ -1807,9 +1833,15 @@ local function frameUI()
     -- everything right of the search field: Images, Follow track, Sort, [size slider], Settings
     local reserve = 400 + (S.images and 118 or 0)
     ImGui.SetNextItemWidth(ctx, math.max(120, availW - reserve))
-    local changed, q = ImGui.InputTextWithHint(ctx, "##search", "Search plugins, developers, formats...", query,
+    local changed, q = ImGui.InputTextWithHint(ctx, "##search" .. searchGen, "Search plugins, developers, formats...", query,
       ImGui.InputTextFlags_AutoSelectAll)
     if changed then query = q; dirty = true; sel = 1 end
+    -- starting a search leaves the tag (or the suggested Recent list): search everything, then narrow by brand / category
+    if (ImGui.IsItemClicked(ctx, 0) or (changed and q ~= ""))
+       and (category:match("^folder:") or (autoPicked and category == "recent")) then
+      category = "all"; devSel = {}; autoPicked = false; searchLeftTag = true
+      dirty = true; sel = 1; selectOnly(nil)
+    end
     ImGui.SameLine(ctx)
     local rv
     rv, S.images = ImGui.Checkbox(ctx, "Images", S.images); if rv then saveSettings() end
@@ -2088,6 +2120,12 @@ local function frameUI()
   return open and action ~= "close"
 end
 
+local function resetSearch()
+  if query ~= "" then query = ""; dirty = true; sel = 1 end
+  searchGen = searchGen + 1; focusSearch = true
+  if searchLeftTag then searchLeftTag = false; ctxTrackKey = nil; ctxCheckT = -1e9 end     -- back to the tag suggested for the track
+end
+
 local function dropAtMouse(p)
   local mx, my = reaper.GetMousePosition()
   local item, take = reaper.GetItemFromPoint(mx, my, true)
@@ -2112,14 +2150,16 @@ local function loop()
         local fo = findFolder(dropFolder)
         local list = msel[drag.name] and selectedList() or { drag }
         if fo then addToFolder(fo, list) end
-      elseif not hoverSelf then dropAtMouse(drag) end   -- released outside the browser: drop on REAPER
+      elseif not hoverSelf then
+        if dropAtMouse(drag) then resetSearch() end       -- released outside the browser: drop on REAPER
+      end
       drag = nil
     end
   end
   if batch then stepBatch() end
   -- smart context: follow the selected track
   local now = reaper.time_precise()
-  if S.follow and now - ctxCheckT > 0.25 then
+  if S.follow and query == "" and now - ctxCheckT > 0.25 then
     ctxCheckT = now
     local tr = reaper.GetSelectedTrack2(0, 0, true) or reaper.GetLastTouchedTrack()
     local key
@@ -2153,6 +2193,7 @@ local function loop()
     pending = nil
     local okAny = false
     for _, q in ipairs(list) do okAny = insert(q, mode) or okAny end
+    if okAny then resetSearch() end
     if okAny and S.closeAfter then keep = false end
   end
   if keep then reaper.defer(loop) end
