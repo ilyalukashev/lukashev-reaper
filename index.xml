@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Lukashev Tools" commit="8a05a429aa137eb8f7f0bcab1bc33d2780d5a9c9">
+<index version="1" name="Lukashev Tools" commit="0ca469379b3be35fba67b1565722c8f7907a0d7d">
   <category name="Effects">
-    <reapack name="LG Analog Meters.jsfx" type="effect" desc="LKSHV Analog Meters (VU / Dorrough-style / SSL-style plasma)">
-      <version name="1.0" author="Ilia Lukashev" time="2026-11-10T00:20:47Z">
-        <changelog><![CDATA[First ReaPack release]]></changelog>
-        <source>https://github.com/ilyalukashev/lukashev-reaper/raw/57f1bdbdeb9aa50bc4047d3bfce090c885cba404/Effects/LG%20Analog%20Meters.jsfx</source>
-      </version>
-      <version name="1.1" author="Ilia Lukashev" time="2026-11-10T05:33:50Z">
-        <changelog><![CDATA[Display name changed from LG to LKSHV (file name kept so existing projects still load it)]]></changelog>
-        <source>https://github.com/ilyalukashev/lukashev-reaper/raw/15135ec9323f7b18a0142e3f2e7574c0ee57cdb8/Effects/LG%20Analog%20Meters.jsfx</source>
-      </version>
-    </reapack>
     <reapack name="LG Phosphor Goniometer.jsfx" type="effect" desc="LKSHV Phosphor Scope (goniometer / X-Y / oscilloscope)">
       <version name="1.0" author="Ilia Lukashev" time="2026-11-10T00:20:47Z">
         <changelog><![CDATA[First ReaPack release]]></changelog>
@@ -19,6 +9,10 @@
       <version name="1.1" author="Ilia Lukashev" time="2026-11-10T05:33:50Z">
         <changelog><![CDATA[Display name changed from LG to LKSHV (file name kept so existing projects still load it)]]></changelog>
         <source>https://github.com/ilyalukashev/lukashev-reaper/raw/15135ec9323f7b18a0142e3f2e7574c0ee57cdb8/Effects/LG%20Phosphor%20Goniometer.jsfx</source>
+      </version>
+      <version name="1.2" author="Ilia Lukashev" time="2026-11-19T04:12:33Z">
+        <changelog><![CDATA[Same trace brightness at any size (embedded TCP/MCP views were too bright)]]></changelog>
+        <source>https://github.com/ilyalukashev/lukashev-reaper/raw/0ca469379b3be35fba67b1565722c8f7907a0d7d/Effects/LG%20Phosphor%20Goniometer.jsfx</source>
       </version>
     </reapack>
   </category>
