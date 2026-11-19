@@ -1,8 +1,8 @@
 desc:LKSHV Phosphor Scope (goniometer / X-Y / oscilloscope)
 tags: analysis goniometer oscilloscope vectorscope lissajous
 author: Ilia Lukashev
-version: 1.1
-changelog: Display name changed from LG to LKSHV (file name kept so existing projects still load it)
+version: 1.2
+changelog: Same trace brightness at any size (embedded TCP/MCP views were too bright)
 // Analog CRT look: the trace is a continuous beam whose brightness falls with beam speed,
 // phosphor persistence and glass halation. Settings: click the "..." button in the top-right corner.
 // Right-click the FX in TCP/MCP -> "Show embedded UI" to put it in the track / mixer strip.
@@ -138,6 +138,9 @@ g = 10 ^ (gain_db / 20);
 cx = lw * 0.5; cy = lh * 0.5;
 rad = min(lw, lh) * 0.46;
 kI = beam * 0.55 * 48000 / srate;
+// the beam's energy is spread over the trace length, which shrinks with the view: without this a small
+// embedded TCP/MCP view packs the same energy into fewer pixels and glows much brighter than the window
+kI *= max(0.05, min(3, (mode == 2 ? (lw + lh) * 0.5 / 390 : rad / 150)));
 gfx_dest = 1;
 
 mode == 2 ? (
