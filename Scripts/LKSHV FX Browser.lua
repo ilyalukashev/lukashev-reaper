@@ -1,7 +1,9 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.8
+-- @version 1.9
 -- @author Ilia Lukashev
 -- @changelog
+--   Folders: a minimal set (Dynamics, EQ, Saturation, Reverb, Modulation, Spatial, Guitar, Master) in the sidebar;
+--     drag plugins in or right-click a plugin > Folders; right-click a folder > Auto-fill by plugin names
 --   Donate button opens taplink.cc/lukashevmixing
 --   Search: clicking or typing in the search field leaves the suggested tag and searches all plugins; pick a brand
 --     or category to narrow it; the search clears after a plugin is inserted
@@ -161,14 +163,16 @@ local function loadFolders()
     line = line:gsub("\r$", "")
     local hdr = line:match("^#%s*(.+)$")
     local kw = line:match("^@%s*(.*)$")
-    if hdr then cur = { name = hdr, set = {}, n = 0 }; folders[#folders + 1] = cur
+    local flag = line:match("^!%s*(%a+)%s*$")
+    if flag and cur then if flag == "folder" then cur.kind = "folder" end
+    elseif hdr then cur = { name = hdr, set = {}, n = 0 }; folders[#folders + 1] = cur
     elseif kw and cur then cur.kw = parseKw(kw)
     elseif cur and line ~= "" and not cur.set[line] then cur.set[line] = true; cur.n = cur.n + 1 end
   end
   f:close()
   for _, fo in ipairs(folders) do
-    if not fo.kw then fo.kw = defaultKw(fo.name) end
-    local n = fo.name:lower()                         -- bus/group tags always claim the _stm suffix
+    if not fo.kw then fo.kw = fo.kind and {} or defaultKw(fo.name) end
+    local n = fo.kind and "" or fo.name:lower()                         -- bus/group tags always claim the _stm suffix
     if n:find("bus", 1, true) or n:find("group", 1, true) or n:find("grp", 1, true) then
       local has = false
       for _, k in ipairs(fo.kw) do if k == "_stm" then has = true end end
@@ -180,6 +184,7 @@ local function saveFolders()
   local out = {}
   for _, fo in ipairs(folders) do
     out[#out + 1] = "# " .. fo.name
+    if fo.kind then out[#out + 1] = "! " .. fo.kind end
     out[#out + 1] = "@ " .. table.concat(fo.kw or {}, ", ")
     local t = {}
     for nm in pairs(fo.set) do t[#t + 1] = nm end
@@ -190,6 +195,33 @@ local function saveFolders()
 end
 local function findFolder(name) for i, fo in ipairs(folders) do if fo.name == name then return fo, i end end end
 loadFolders()
+
+-- folders: the same thing as tags, shown in their own sidebar section. A minimal default set is created once
+-- (delete or rename them freely - they are not recreated).
+local FOLDER_WORDS = {
+  Dynamics   = "comp, compressor, limiter, limit, gate, expander, deess, deesser, esser, transient, leveler, "
+            .. "leveller, multiband, dynamics, dyn, 1176, la2a, la3a, 2a, 3a, 76, vca, opto, fet, vari, bus comp",
+  Saturation = "satur, saturator, saturation, distort, distortion, tape, tube, drive, overdrive, fuzz, crush, "
+            .. "crusher, exciter, harmonic, harmonics, clip, clipper, warmth, decapitator",
+  Master     = "master, mastering, maximizer, maximiser, ozone, loudness, lufs, dither, meter, metering",
+  Guitar     = "guitar, amp, amps, cab, cabinet, pedal, archetype, amplitube, tonex, bass amp, helix",
+  EQ         = "eq, equalizer, equaliser, equal, pultec, filter, eqp, meq, maag, tilt",
+  Reverb     = "verb, reverb, plate, hall, room, spring, convolution, convolver, chamber, ambience",
+  Spatial    = "stereo, width, widener, widen, imager, imaging, pan, panner, spatial, binaural, surround, "
+            .. "spread, haas",
+  Modulation = "chorus, flanger, flange, phaser, tremolo, vibrato, rotary, ensemble, modulation, mod, leslie",
+}
+local DEFAULT_FOLDERS = { "Dynamics", "EQ", "Saturation", "Reverb", "Modulation", "Spatial", "Guitar", "Master" }
+if getS("defaultFolders", "0") ~= "1" then
+  local added = false
+  for _, nm in ipairs(DEFAULT_FOLDERS) do
+    if not findFolder(nm) then
+      folders[#folders + 1] = { name = nm, set = {}, n = 0, kw = {}, kind = "folder" }; added = true
+    end
+  end
+  if added then saveFolders() end
+  setS("defaultFolders", 1)
+end
 
 -- smart context: pick the folder whose keywords match the selected track (or its parent folder tracks)
 local function nameTokens(name)
@@ -1340,13 +1372,33 @@ local function removeFromFolder(fo, list)
   for _, q in ipairs(list) do if fo.set[q.name] then fo.set[q.name] = nil; fo.n = fo.n - 1 end end
   saveFolders(); dirty = true
 end
-local function newFolder(list)
-  local ok, name = reaper.GetUserInputs("New tag", 1, "Tag name:,extrawidth=180", "")
+local function newFolder(list, kind)
+  local what = kind and "folder" or "tag"
+  local ok, name = reaper.GetUserInputs("New " .. what, 1, (kind and "Folder" or "Tag") .. " name:,extrawidth=180", "")
   name = ok and name:gsub("^%s+", ""):gsub("%s+$", "") or ""
   if name == "" then return end
   local fo = findFolder(name)
-  if not fo then fo = { name = name, set = {}, n = 0, kw = defaultKw(name) }; folders[#folders + 1] = fo end
+  if not fo then fo = { name = name, set = {}, n = 0, kw = kind and {} or defaultKw(name), kind = kind }; folders[#folders + 1] = fo end
   if list then addToFolder(fo, list) else saveFolders() end
+end
+-- plugins whose name contains one of the folder's words (whole word, or word prefix for words of 4+ letters)
+local function autoFillMatches(fo)
+  local words = {}
+  for w in (FOLDER_WORDS[fo.name] or fo.name):lower():gmatch("[^,]+") do
+    w = w:gsub("^%s+", ""):gsub("%s+$", "")
+    if w ~= "" then words[#words + 1] = w end
+  end
+  local out = {}
+  for _, p in ipairs(all) do
+    if p.primary and not p.fmtHidden and not fo.set[p.name] then
+      local nm = " " .. (p.lbase or p.name:lower()):gsub("[^%w]+", " ") .. " "
+      for _, w in ipairs(words) do
+        local hit = nm:find(" " .. w .. " ", 1, true) or (#w >= 4 and nm:find(" " .. w, 1, true))
+        if hit then out[#out + 1] = p; break end
+      end
+    end
+  end
+  return out
 end
 local function captureMenu(list, label)
   if not IS_MAC then return end
@@ -1388,8 +1440,13 @@ local function contextMenu(p)
       ImGui.PopFont(ctx)
     end
     ImGui.Separator(ctx)
-    if ImGui.BeginMenu(ctx, many and ("Tags (%d plugins)"):format(#list) or "Tags") then
-      for _, fo in ipairs(folders) do
+    for pass = 1, 2 do
+    local wantKind = pass == 1 and "folder" or nil
+    local title = pass == 1 and "Folders" or "Tags"
+    if ImGui.BeginMenu(ctx, many and ("%s (%d plugins)"):format(title, #list) or title) then
+      local shown = 0
+      for _, fo in ipairs(folders) do if fo.kind == wantKind then
+        shown = shown + 1
         local have = 0
         for _, q in ipairs(list) do if fo.set[q.name] then have = have + 1 end end
         local all = have == #list
@@ -1397,13 +1454,16 @@ local function contextMenu(p)
         if ImGui.MenuItem(ctx, label, nil, all) then
           if all then removeFromFolder(fo, list) else addToFolder(fo, list) end
         end
+      end end
+      if shown > 0 then ImGui.Separator(ctx) end
+      if ImGui.MenuItem(ctx, pass == 1 and "New folder..." or "New tag...") then
+        local l, k = list, wantKind; queue(function() newFolder(l, k) end)
       end
-      if #folders > 0 then ImGui.Separator(ctx) end
-      if ImGui.MenuItem(ctx, "New tag...") then local l = list; queue(function() newFolder(l) end) end
       ImGui.EndMenu(ctx)
     end
+    end
     local cf = category:match("^folder:(.+)$")
-    if cf and ImGui.MenuItem(ctx, many and ("Untag %d from \"%s\""):format(#list, cf) or ('Untag from "' .. cf .. '"')) then
+    if cf and ImGui.MenuItem(ctx, many and ("Remove %d from \"%s\""):format(#list, cf) or ('Remove from "' .. cf .. '"')) then
       local fo = findFolder(cf)
       if fo then removeFromFolder(fo, list) end
       selectOnly(nil)
@@ -1517,16 +1577,27 @@ local function sideItem(label, cat, count, ic)
       if fo then
         captureMenu(pluginsOfFolder(fo))
         ImGui.Separator(ctx)
+        if fo.kind and ImGui.MenuItem(ctx, "Auto-fill by plugin names...") then
+          queue(function()
+            local m = autoFillMatches(fo)
+            if #m == 0 then say("Nothing new found for " .. fo.name); return end
+            local ex = {}
+            for i = 1, math.min(#m, 12) do ex[#ex + 1] = m[i].name end
+            local msg = ("Add %d plugin(s) to \"%s\"?\n\n%s%s\n\nIt matches by name only - remove the wrong ones afterwards.")
+              :format(#m, fo.name, table.concat(ex, "\n"), #m > 12 and "\n..." or "")
+            if reaper.MB(msg, "Auto-fill folder", 1) == 1 then addToFolder(fo, m) end
+          end)
+        end
         if ImGui.MenuItem(ctx, "Match track names...") then
           queue(function()
-            local ok, kws = reaper.GetUserInputs("Tracks for tag " .. fo.name, 1,
+            local ok, kws = reaper.GetUserInputs("Tracks for " .. fo.name, 1,
               "Track name words (comma separated):,extrawidth=420", table.concat(fo.kw or {}, ", "))
             if ok then fo.kw = parseKw(kws); saveFolders(); ctxTrackKey = nil end
           end)
         end
         if ImGui.MenuItem(ctx, "Rename...") then
           queue(function()
-            local ok, nn = reaper.GetUserInputs("Rename tag", 1, "Tag name:,extrawidth=180", fo.name)
+            local ok, nn = reaper.GetUserInputs("Rename", 1, "Name:,extrawidth=180", fo.name)
             nn = ok and nn:gsub("^%s+", ""):gsub("%s+$", "") or ""
             if nn ~= "" and not findFolder(nn) then
               if category == "folder:" .. fo.name then category = "folder:" .. nn end
@@ -1534,7 +1605,7 @@ local function sideItem(label, cat, count, ic)
             end
           end)
         end
-        if ImGui.MenuItem(ctx, "Delete tag") then
+        if ImGui.MenuItem(ctx, fo.kind and "Delete folder" or "Delete tag") then
           local _, idx = findFolder(fname)
           table.remove(folders, idx); saveFolders()
           if category == cat then category = "all" end
@@ -1813,7 +1884,10 @@ local function categoryTitle()
     return n == 1 and one:upper() or (n .. " BRANDS")
   end
   local k, v = category:match("^(%w+):(.+)$")
-  if k == "folder" then return "#" .. v:upper() end
+  if k == "folder" then
+    local fo = findFolder(v)
+    return ((fo and fo.kind) and "" or "#") .. v:upper()
+  end
   if k then return v:upper() end
   return category:upper()
 end
@@ -1964,10 +2038,18 @@ local function frameUI()
         ImGui.Dummy(ctx, 0, 2)
       end
 
-      if header("Tags", "plus") then queue(function() newFolder(nil) end) end
       dropFolder = nil
-      for _, fo in ipairs(folders) do sideItem(fo.name, "folder:" .. fo.name, fo.n, "tag") end
-      if #folders == 0 then
+      if header("Folders", "plus") then queue(function() newFolder(nil, "folder") end) end
+      for _, fo in ipairs(folders) do
+        if fo.kind then sideItem(fo.name, "folder:" .. fo.name, fo.n, "folder") end
+      end
+
+      if header("Tags", "plus") then queue(function() newFolder(nil) end) end
+      local nTags = 0
+      for _, fo in ipairs(folders) do
+        if not fo.kind then nTags = nTags + 1; sideItem(fo.name, "folder:" .. fo.name, fo.n, "tag") end
+      end
+      if nTags == 0 then
         ImGui.PushFont(ctx, fontSmall); ImGui.TextDisabled(ctx, "   drag plugins here or press +"); ImGui.PopFont(ctx)
       end
 
