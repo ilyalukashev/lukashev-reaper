@@ -1,8 +1,8 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.10
+-- @version 1.11
 -- @author Ilia Lukashev
 -- @changelog
---   Empty sections: the headline wraps and scales to the pane and shows a random prompt (own list: phrases.txt)
+--   Empty sections: the headline wraps and scales to fit the pane
 --   Folders: a minimal set (Dynamics, EQ, Saturation, Reverb, Modulation, Spatial, Guitar, Master) in the sidebar;
 --     drag plugins in or right-click a plugin > Folders; right-click a folder > Auto-fill by plugin names
 --   Donate button opens taplink.cc/lukashevmixing
@@ -104,16 +104,8 @@ local function writeList(k, arr)
   local f = io.open(listPath(k), "w")
   if f then f:write(table.concat(arr, "\n")); f:close() end
 end
--- prompts shown in empty sections; put your own lines in Data/LKSHV FX Browser/phrases.txt to replace them
-local EMPTY = { prompts = {
-  "Nothing here", "Mute it first", "Turn it down", "Check it in mono", "Less is louder", "Trust the fader",
-  "Bypass everything", "What is the song about?", "Leave the mistake in", "Listen from the next room",
-  "Is it the arrangement?", "Do the obvious thing", "Do the opposite", "Start with the vocal", "Print it and move on",
-  "Close your eyes", "What would you remove?", "Make one thing huge", "Dry is a choice", "Quieter monitors",
-  "Go back to the rough", "Ask the drummer", "Commit", "Take a walk", "Automate, don't process",
-  "Find the loudest moment", "Is it done already?", "Pan it somewhere brave", "Listen to the low end only",
-  "Let it be ugly", "Which part is the star?", "Silence is a plugin too",
-} }
+-- empty sections say "Nothing here"; lines in Data/LKSHV FX Browser/phrases.txt (optional) are shown at random instead
+local EMPTY = { prompts = { "Nothing here" } }
 EMPTY.user = loadList("phrases")
 function EMPTY.pick()
   local src = #EMPTY.user > 0 and EMPTY.user or EMPTY.prompts
