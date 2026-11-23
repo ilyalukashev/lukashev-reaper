@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Lukashev Tools" commit="a259f9a59ba9d6651b2e6504a0165b4d8e047a8b">
+<index version="1" name="Lukashev Tools" commit="ecbfc5bd7a7e9a538089e46289e96c9d63371736">
   <category name="Effects">
     <reapack name="LG Phosphor Goniometer.jsfx" type="effect" desc="LKSHV Phosphor Scope (goniometer / X-Y / oscilloscope)">
       <version name="1.0" author="Ilia Lukashev" time="2026-11-10T00:20:47Z">
@@ -179,6 +179,30 @@ _stm suffix opens Buss/Group tags
 Dock-style magnify in the brand list
 Donate button]]></changelog>
         <source main="main">https://github.com/ilyalukashev/lukashev-reaper/raw/a259f9a59ba9d6651b2e6504a0165b4d8e047a8b/Scripts/LKSHV%20FX%20Browser.lua</source>
+      </version>
+      <version name="1.11" author="Ilia Lukashev" time="2026-11-23T19:56:39Z">
+        <changelog><![CDATA[Empty sections: the headline wraps and scales to fit the pane
+Folders: a minimal set (Dynamics, EQ, Saturation, Reverb, Modulation, Spatial, Guitar, Master) in the sidebar;
+  drag plugins in or right-click a plugin > Folders; right-click a folder > Auto-fill by plugin names
+Donate button opens taplink.cc/lukashevmixing
+Search: clicking or typing in the search field leaves the suggested tag and searches all plugins; pick a brand
+  or category to narrow it; the search clears after a plugin is inserted
+Favourites: click the star on a card or list row (also Cmd+D, or right-click > Add to favourites)
+Merge brands: select several (Cmd/Shift-click), right-click > Merge brands...
+Rename brands (right-click a brand > Rename brand...); names, hidden plugins and tags live in the Data folder
+  and survive rescans, script updates and reinstalls
+Fixes: "(8 out)" / "(mono)" suffixes no longer become brands; list view could not scroll to its last rows;
+  grid rows left a blank strip while scrolling; Settings button pushed off the top bar; hidden formats and
+  favourites of a non-preferred format missing from Hidden / Favourites; empty undo points on failed inserts;
+  arrow keys moved the selection while typing; non-Latin names cut mid-character
+Hide plugin formats per brand (right-click a brand > Formats)
+Sort the plugin list by name, brand or type
+Renamed LG -> LKSHV (settings, tags and images are carried over automatically)
+Tags with track-name matching (follow selected track, Recent for unknown tracks)
+_stm suffix opens Buss/Group tags
+Dock-style magnify in the brand list
+Donate button]]></changelog>
+        <source main="main">https://github.com/ilyalukashev/lukashev-reaper/raw/ecbfc5bd7a7e9a538089e46289e96c9d63371736/Scripts/LKSHV%20FX%20Browser.lua</source>
       </version>
     </reapack>
     <reapack name="LKSHV Stem Matrix.lua" type="script" desc="LKSHV Stem Matrix — one-click mute / solo for _STM tracks">
