@@ -1,7 +1,8 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.9
+-- @version 1.10
 -- @author Ilia Lukashev
 -- @changelog
+--   Empty sections: the headline wraps and scales to the pane and shows a random prompt (own list: phrases.txt)
 --   Folders: a minimal set (Dynamics, EQ, Saturation, Reverb, Modulation, Spatial, Guitar, Master) in the sidebar;
 --     drag plugins in or right-click a plugin > Folders; right-click a folder > Auto-fill by plugin names
 --   Donate button opens taplink.cc/lukashevmixing
@@ -102,6 +103,21 @@ end
 local function writeList(k, arr)
   local f = io.open(listPath(k), "w")
   if f then f:write(table.concat(arr, "\n")); f:close() end
+end
+-- prompts shown in empty sections; put your own lines in Data/LKSHV FX Browser/phrases.txt to replace them
+local EMPTY = { prompts = {
+  "Nothing here", "Mute it first", "Turn it down", "Check it in mono", "Less is louder", "Trust the fader",
+  "Bypass everything", "What is the song about?", "Leave the mistake in", "Listen from the next room",
+  "Is it the arrangement?", "Do the obvious thing", "Do the opposite", "Start with the vocal", "Print it and move on",
+  "Close your eyes", "What would you remove?", "Make one thing huge", "Dry is a choice", "Quieter monitors",
+  "Go back to the rough", "Ask the drummer", "Commit", "Take a walk", "Automate, don't process",
+  "Find the loudest moment", "Is it done already?", "Pan it somewhere brave", "Listen to the low end only",
+  "Let it be ugly", "Which part is the star?", "Silence is a plugin too",
+} }
+EMPTY.user = loadList("phrases")
+function EMPTY.pick()
+  local src = #EMPTY.user > 0 and EMPTY.user or EMPTY.prompts
+  return src[math.random(#src)]
 end
 local favList, favSet = loadList("favorites")
 local recentList = loadList("recent")
@@ -2132,17 +2148,45 @@ local function frameUI()
       ImGui.PopFont(ctx)
       ImGui.Dummy(ctx, 0, 8)
       if #results == 0 then
-        local _, ah = ImGui.GetContentRegionAvail(ctx)
+        -- empty state: a random prompt, wrapped and scaled so it always fits the pane
+        if EMPTY.key ~= category then EMPTY.key = category; EMPTY.text = EMPTY.pick() end
+        local top = ImGui.GetCursorPosY(ctx)
+        local availH = math.max(40, wh - top - 46)
+        local maxW = math.max(60, ww - 44)
         ImGui.PushFont(ctx, fontHeadXL)
-        local t = "NOTHING HERE"
-        local tw, th = ImGui.CalcTextSize(ctx, t)
-        ImGui.SetCursorPos(ctx, (ww - tw) / 2, math.max(ImGui.GetCursorPosY(ctx), wh / 2 - th))
-        ImGui.Text(ctx, t)
+        local spaceW = ImGui.CalcTextSize(ctx, " ")
+        local _, lineH = ImGui.CalcTextSize(ctx, "A")
+        local words = {}
+        for wd in EMPTY.text:upper():gmatch("%S+") do words[#words + 1] = { wd, (ImGui.CalcTextSize(ctx, wd)) } end
         ImGui.PopFont(ctx)
+        local k, lines = 1, nil
+        for _ = 1, 24 do                                       -- shrink until every word and the whole block fit
+          lines = {}
+          local cur, curW, fits = nil, 0, true
+          for _, wd in ipairs(words) do
+            local ws = wd[2] * k
+            if ws > maxW then fits = false end
+            if cur and curW + spaceW * k + ws <= maxW then cur = cur .. " " .. wd[1]; curW = curW + spaceW * k + ws
+            else
+              if cur then lines[#lines + 1] = { cur, curW } end
+              cur, curW = wd[1], ws
+            end
+          end
+          if cur then lines[#lines + 1] = { cur, curW } end
+          if (fits and #lines * lineH * k * 1.05 <= availH and #lines <= 4) or k < 0.2 then break end
+          k = k * 0.9
+        end
+        local lh = lineH * k * 1.05
+        local blockH = #lines * lh
+        local y0 = wy + math.max(top, (wh - blockH) / 2 - 12)
+        local dl = ImGui.GetWindowDrawList(ctx)
+        for i, ln in ipairs(lines) do
+          ImGui.DrawList_AddTextEx(dl, fontHeadXL, 48 * k, wx + (ww - ln[2]) / 2, y0 + (i - 1) * lh, C.text, ln[1])
+        end
         ImGui.PushFont(ctx, fontSmall)
         local sub = query ~= "" and "Nothing matches your search." or "This section is empty."
         local sw = ImGui.CalcTextSize(ctx, sub)
-        ImGui.SetCursorPosX(ctx, (ww - sw) / 2)
+        ImGui.SetCursorPos(ctx, (ww - sw) / 2, y0 - wy + blockH + 8)
         ImGui.TextColored(ctx, C.text2, sub)
         ImGui.PopFont(ctx)
       elseif S.images then
