@@ -1,7 +1,8 @@
 -- @description LKSHV FX Browser — fast FX browser with plugin images (Lukashev Graphite style)
--- @version 1.11
+-- @version 1.12
 -- @author Ilia Lukashev
 -- @changelog
+--   Fix: "InvisibleButton: Assertion failed" error when the window or the plugin pane gets very narrow or short
 --   Empty sections: the headline wraps and scales to fit the pane
 --   Folders: a minimal set (Dynamics, EQ, Saturation, Reverb, Modulation, Spatial, Guitar, Master) in the sidebar;
 --     drag plugins in or right-click a plugin > Folders; right-click a folder > Auto-fill by plugin names
@@ -1502,7 +1503,7 @@ local function itemButton(id, label, count, active, ic, magnify)
   local w = math.max(10, select(1, ImGui.GetContentRegionAvail(ctx)))
   local h = ic and 34 or 28
   local x, y = ImGui.GetCursorScreenPos(ctx)
-  local clicked = ImGui.InvisibleButton(ctx, id, w, h)
+  local clicked = ImGui.InvisibleButton(ctx, id, math.max(1, w), math.max(1, h))
   local hov = ImGui.IsItemHovered(ctx)
   local t = animate(id, hov and 1 or 0)
   local dl = ImGui.GetWindowDrawList(ctx)
@@ -1698,6 +1699,7 @@ ImGui.Attach(ctx, clipper)
 -- responsive grid: the size slider sets the card size for a wide window; narrower windows shrink the
 -- cards (down to 60%) so more plugins fit, then the row is justified to fill the width exactly
 local function gridLayout(w)
+  w = math.max(60, w)                                        -- a collapsed pane must not give zero-size cards
   local f = math.max(0.6, math.min(1.0, w / 1200))
   local target = math.max(110, S.thumb * f)
   local gap = math.floor(10 + 6 * f)
@@ -2095,7 +2097,7 @@ local function frameUI()
     do
       local sx, sy = ImGui.GetCursorScreenPos(ctx)
       local sh = restH - footH
-      ImGui.InvisibleButton(ctx, "##splitter", 8, sh)
+      ImGui.InvisibleButton(ctx, "##splitter", 8, math.max(1, sh))
       local hov, act = ImGui.IsItemHovered(ctx), ImGui.IsItemActive(ctx)
       if hov or act then ImGui.SetMouseCursor(ctx, ImGui.MouseCursor_ResizeEW) end
       if act then
@@ -2113,7 +2115,7 @@ local function frameUI()
     ImGui.SameLine(ctx, 0, 0)
 
     -- results
-    local mainW = availW - sideW - 8
+    local mainW = math.max(40, availW - sideW - 8)
     ImGui.PushStyleColor(ctx, ImGui.Col_ChildBg, C.bg)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 22, 18)
     local resOpen = ImGui.BeginChild(ctx, "results", mainW, restH - footH, 0, 0)
@@ -2210,7 +2212,7 @@ local function frameUI()
       local padX = ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding)
       ImGui.SameLine(ctx, math.max(0, ImGui.GetWindowWidth(ctx) - padX - bw))
       local bx, by = ImGui.GetCursorScreenPos(ctx)
-      if ImGui.InvisibleButton(ctx, "##donate", bw, bh) then openURL(DONATE_URL) end
+      if ImGui.InvisibleButton(ctx, "##donate", math.max(1, bw), math.max(1, bh)) then openURL(DONATE_URL) end
       local hov = ImGui.IsItemHovered(ctx)
       if hov then
         ImGui.SetMouseCursor(ctx, ImGui.MouseCursor_Hand)
