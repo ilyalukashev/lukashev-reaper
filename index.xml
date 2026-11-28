@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Lukashev Tools" commit="7e6621cdb1fe87334e87a0d83e48080923642462">
+<index version="1" name="Lukashev Tools" commit="6a4d0ea487ef9557857a66450abb0c319b3e10ac">
   <category name="Effects">
     <reapack name="LG Phosphor Goniometer.jsfx" type="effect" desc="LKSHV Phosphor Scope (goniometer / X-Y / oscilloscope)">
       <version name="1.0" author="Ilia Lukashev" time="2026-11-10T00:20:47Z">
@@ -230,6 +230,20 @@ Donate button]]></changelog>
         <source main="main">https://github.com/ilyalukashev/lukashev-reaper/raw/7e6621cdb1fe87334e87a0d83e48080923642462/Scripts/LKSHV%20FX%20Browser.lua</source>
       </version>
     </reapack>
+    <reapack name="LKSHV Graphite - Toggle mixer input buttons.lua" type="script" desc="LKSHV Graphite - Toggle mixer input buttons (rec mode / input FX)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 For the Lukashev Graphite theme (49+). Shows or hides the record-mode ("IN") and input-FX buttons in the mixer's input section. They are hidden by default.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="Ilia Lukashev" time="2026-11-27T23:59:32Z">
+        <source main="main">https://github.com/ilyalukashev/lukashev-reaper/raw/6a4d0ea487ef9557857a66450abb0c319b3e10ac/Scripts/LKSHV%20Graphite%20-%20Toggle%20mixer%20input%20buttons.lua</source>
+      </version>
+    </reapack>
     <reapack name="LKSHV Stem Matrix.lua" type="script" desc="LKSHV Stem Matrix — one-click mute / solo for _STM tracks">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -294,7 +308,7 @@ Which tracks count as stems is configurable per project (e.g. "bus") with a glob
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours, a light arrange area and flat controls for long, comfortable sessions. After installing: Options > Themes > Lukashev Graphite 48.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Minimal, high-res theme based on Default 7 with Apple HIG-inspired colours, a light arrange area and flat controls for long, comfortable sessions. After installing: Options > Themes > Lukashev Graphite 49.\par}
 }
 ]]></description>
       </metadata>
@@ -647,6 +661,31 @@ Slightly deeper indicator colours (FX/rec/routing); mute and solo keep full brig
 Arrange grid: subtle measure/beat/sub-beat lines
 Mixer insert area ruled with thin lines; TCP FX slots centred vertically]]></changelog>
         <source file="Lukashev Graphite 48.ReaperThemeZip">https://github.com/ilyalukashev/lukashev-reaper/raw/d54bfecfe656194aa0dfa39cf735cbd93ebae89f/Themes/Lukashev%20Graphite%2048.ReaperThemeZip</source>
+      </version>
+      <version name="49" author="Ilia Lukashev" time="2026-11-27T23:59:32Z">
+        <changelog><![CDATA[Mixer: record-mode (IN) and input-FX buttons hidden by default; bring them back with the action "LKSHV Graphite - Toggle mixer input buttons"
+Track panel: mute/solo and the other controls line up in one column regardless of folder indent
+Full custom toolbar icon set (197 icons, 100/150/200%) bundled inside the theme
+Typography pass: one family, five-step size scale, consistent roles; smaller ruler and marker lane text
+Automation lanes in the TCP get a very slight blue cast
+Wider send slots in the TCP bottom section: send names readable
+Longer TCP volume fader and fader cap
+TCP volume is a horizontal fader in the standard layouts
+New optional track panel layout "Big": large framed track name, three rows of controls
+Thin divider between the track colour block and the insert column in the TCP
+No stray empty knob circles next to TCP sends (empty FX-parameter slots hidden)
+Arrange grid lines visible again (fixed grid draw modes)
+Softer, more pastel item backgrounds
+Item colours follow the track colour exactly: neutral base, wash and selection (no blue cast)
+Item background lightly tinted to the track colour (pastel), peaks in full track colour
+Black outline drawn around peaks and waveforms
+Waveform peaks in track/item/take colour on a neutral item background (Pro Tools style)
+No send knob on empty send rows (TCP and MCP); black waveform outline
+Mixer: selected strip marked over its full height (blue wash + accent edges)
+Slightly deeper indicator colours (FX/rec/routing); mute and solo keep full brightness
+Arrange grid: subtle measure/beat/sub-beat lines
+Mixer insert area ruled with thin lines; TCP FX slots centred vertically]]></changelog>
+        <source file="Lukashev Graphite 49.ReaperThemeZip">https://github.com/ilyalukashev/lukashev-reaper/raw/6a4d0ea487ef9557857a66450abb0c319b3e10ac/Themes/Lukashev%20Graphite%2049.ReaperThemeZip</source>
       </version>
     </reapack>
   </category>
