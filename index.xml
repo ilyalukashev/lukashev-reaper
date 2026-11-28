@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Lukashev Tools" commit="6a4d0ea487ef9557857a66450abb0c319b3e10ac">
+<index version="1" name="Lukashev Tools" commit="db86c5b02e1df6927da231ee2c32ecd1faf96b6f">
   <category name="Effects">
     <reapack name="LG Phosphor Goniometer.jsfx" type="effect" desc="LKSHV Phosphor Scope (goniometer / X-Y / oscilloscope)">
       <version name="1.0" author="Ilia Lukashev" time="2026-11-10T00:20:47Z">
@@ -242,6 +242,21 @@ Donate button]]></changelog>
       </metadata>
       <version name="1.0" author="Ilia Lukashev" time="2026-11-27T23:59:32Z">
         <source main="main">https://github.com/ilyalukashev/lukashev-reaper/raw/6a4d0ea487ef9557857a66450abb0c319b3e10ac/Scripts/LKSHV%20Graphite%20-%20Toggle%20mixer%20input%20buttons.lua</source>
+      </version>
+    </reapack>
+    <reapack name="LKSHV Mix Notes.lua" type="script" desc="LKSHV Mix Notes — paste client revisions, get a checklist with timecodes">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Paste (or type) revision notes from an email or a chat. The text is split into separate notes: by song / section headers, bullets and sentences, and every timecode (1:23, 01:02:03, 1:20-1:35) becomes its own note. Click a timecode to jump there, tick a note when it is done, flag notes red / yellow / green. Notes are saved inside the project. Requires ReaImGui (ReaPack: ReaTeam Extensions).\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="Ilia Lukashev" time="2026-11-28T00:47:00Z">
+        <changelog><![CDATA[First release]]></changelog>
+        <source main="main">https://github.com/ilyalukashev/lukashev-reaper/raw/db86c5b02e1df6927da231ee2c32ecd1faf96b6f/Scripts/LKSHV%20Mix%20Notes.lua</source>
       </version>
     </reapack>
     <reapack name="LKSHV Stem Matrix.lua" type="script" desc="LKSHV Stem Matrix — one-click mute / solo for _STM tracks">
